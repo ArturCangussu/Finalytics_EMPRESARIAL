@@ -1,4 +1,4 @@
-# motor_analise.py (VERSÃO FINAL CORRIGIDA)
+# motor_analise.py (VERSÃO FINAL SIMPLIFICADA E CORRETA)
 
 import pandas as pd
 import numpy as np
@@ -8,32 +8,33 @@ from .models import Regra, Transacao, Extrato
 def _processar_formato_caixa(df):
     print("Formato Caixa Federal detectado.")
 
-    # CORREÇÃO: Usando nome da coluna em minúsculo ('origem_descricao')
     df['origem_descricao'] = np.where(
-        df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True).isna(), 
-        'Historico', 
+        df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True).isna(),
+        'Historico',
         'Nome/Razao Social'
     )
-    
+
     df['Nome/Razão Social'] = df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True)
     df['Nome/Razão Social'] = df['Nome/Razão Social'].fillna(df['Histórico'])
-    
+
     df_padronizado = df.rename(columns={
         'Valor Lançamento': 'Valor',
         'Nome/Razão Social': 'Descricao',
         'Data Lançamento': 'Data'
     })
-    
+
+    # Bloco de tratamento de data foi REMOVIDO pois o read_excel já faz o trabalho.
+
     df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
     df_padronizado['Topico'] = np.where(df_padronizado['Valor'] < 0, 'Despesa', 'Receita')
     df_padronizado['Valor'] = df_padronizado['Valor'].abs()
+
     return df_padronizado
 
 # --- ESPECIALISTA 2: Processa o formato "Sicoob" ---
 def _processar_formato_sicoob(df):
     print("Formato Sicoob detectado.")
 
-    # CORREÇÃO: Usando nome da coluna em minúsculo ('origem_descricao')
     df['origem_descricao'] = 'Nome/Razao Social'
 
     df_padronizado = df.rename(columns={
@@ -41,21 +42,22 @@ def _processar_formato_sicoob(df):
         'VALOR': 'Valor',
         'DATA': 'Data'
     })
-    
+
+    # Bloco de tratamento de data foi REMOVIDO pois o read_excel já faz o trabalho.
+
     df_padronizado['Valor'] = df_padronizado['Valor'].astype(str)
     df_padronizado['Topico'] = np.where(df_padronizado['Valor'].str.contains('C', na=False), 'Receita', 'Despesa')
     df_padronizado['Valor'] = df_padronizado['Valor'].str.replace('C', '', regex=False).str.replace('D', '', regex=False).str.strip()
     df_padronizado['Valor'] = df_padronizado['Valor'].str.replace('.', '', regex=False)
     df_padronizado['Valor'] = df_padronizado['Valor'].str.replace(',', '.', regex=False)
     df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
-    
-    return df_padronizado
 
+    return df_padronizado
 
 # --- FUNÇÃO PRINCIPAL (O "MAESTRO") ---
 def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
-    
     try:
+        # A mágica já acontece aqui, na leitura do arquivo.
         df_normal = pd.read_excel(arquivo_extrato)
         df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
     except Exception as e:
@@ -70,6 +72,7 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
         print("Colunas encontradas (tentativa 2):", df_com_skip.columns)
         raise ValueError("Formato de extrato não reconhecido.")
 
+    # O resto da função continua exatamente igual
     regras_do_usuario = Regra.objects.filter(usuario=usuario_logado)
     regras_de_categorizacao = {
         regra.palavra_chave: regra.categoria for regra in regras_do_usuario
@@ -96,10 +99,9 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
             valor=linha.get('Valor', 0.0),
             topico=linha.get('Topico', ''),
             subtopico=linha.get('Subtopico', ''),
-            # CORREÇÃO: Usando .get() com o nome minúsculo
             origem_descricao=linha.get('origem_descricao', '')
         )
-    
+
     df_receitas = df_processado[df_processado['Topico'] == 'Receita']
     df_despesas = df_processado[df_processado['Topico'] == 'Despesa']
 
@@ -109,9 +111,8 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
 
     resumo_despesas = df_despesas.groupby('Subtopico')['Valor'].sum().sort_values(ascending=False)
     resumo_receitas = df_receitas.groupby('Subtopico')['Valor'].sum().sort_values(ascending=False)
-    
+
     nao_categorizadas_bruto = df_processado[df_processado['Subtopico'] == 'Não categorizado']
-    # A lista de colunas aqui já estava correta, usando minúsculo
     colunas_desejadas = ['Topico', 'Data', 'Descricao', 'Valor', 'origem_descricao']
     nao_categorizadas_limpo = nao_categorizadas_bruto[colunas_desejadas]
 
