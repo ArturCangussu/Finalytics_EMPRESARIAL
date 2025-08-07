@@ -1,0 +1,18 @@
+{% extends 'analisador/base.html' %}
+
+{% block title %}Logout{% endblock %}
+
+{% block content %}
+<div class="row mt-5">
+    <div class="col-md-6 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-body text-center">
+                <h2 class="h5 mb-3">Você saiu da sua conta.</h2>
+                <p>Obrigado por usar o Finanalytics. Esperamos te ver novamente em breve!</p>
+                <hr>
+                <a href="{% url 'login' %}" class="btn btn-primary">Fazer Login Novamente</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

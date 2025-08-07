@@ -1,0 +1,39 @@
+{% extends 'analisador/base.html' %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row mt-5">
+    <div class="col-md-6 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h5 mb-0"><i class="bi bi-box-arrow-in-right me-2"></i>Login</h2>
+            </div>
+            <div class="card-body">
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        Seu nome de usuário e senha não correspondem. Por favor, tente novamente.
+                    </div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="id_username" class="form-label">Nome de usuário:</label>
+                        <input type="text" name="username" id="id_username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_password" class="form-label">Senha:</label>
+                        <input type="password" name="password" id="id_password" class="form-control" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Entrar</button>
+                </form>
+                <hr>
+                <p class="text-center">Não tem uma conta? <a href="{% url 'cadastro' %}">Cadastre-se</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'analisador/base.html' %}
+
+{% block title %}Relatório Comparativo{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <h1 class="h2 mb-0"><i class="bi bi-layout-split me-3"></i>Relatório Comparativo de Despesas</h1>
+        <a href="{% url 'comparar' %}" class="btn btn-secondary">Fazer Nova Comparação</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% autoescape off %}
+            {{ tabela_html }}
+            {% endautoescape %}
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'analisador/base.html' %}
+
+{% block title %}Detalhes de {{ nome_categoria }}{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <h1 class="h2 mb-0"><i class="bi bi-tags me-3"></i>Detalhes da Categoria: <span class="text-primary">{{ nome_categoria }}</span></h1>
+        <a href="{% url 'pagina_relatorio' extrato_id=extrato.id %}" class="btn btn-secondary">Voltar para o Relatório</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if transacoes %}
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th class="text-end">Valor</th>
+                            <th class="text-center">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transacao in transacoes %}
+                        <tr>
+                            <td>{{ transacao.data }}</td>
+                            <td>{{ transacao.descricao_limpa }}</td>
+                            <td class="text-end font-monospace {% if transacao.topico == 'Receita' %}valor-receita{% else %}valor-despesa{% endif %}">R$ {{ transacao.valor|floatformat:2 }}</td>
+                            <td class="text-center">
+                                <a href="{% url 'editar_transacao' transacao_id=transacao.id %}" class="btn btn-sm btn-outline-warning">Editar</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-center text-muted">Nenhuma transação encontrada para esta categoria.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,123 @@
+/* Define as cores que você pediu como variáveis globais */
+:root {
+    --bs-dark-rgb: 4, 28, 50; /* Azul Marinho para o fundo */
+    --bs-body-color: #f8f9fa; /* Branco/Cinza claro para o texto */
+    --bs-secondary-color: #adb5bd;
+    --bs-primary: #0d6efd;
+    --verde-sucesso: #198754;
+    --vermelho-perigo: #dc3545;
+    --amarelo-alerta: #ffc107;
+}
+
+/* Define as fontes que você pediu */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.font-monospace {
+    font-family: 'Roboto Mono', monospace;
+}
+
+/* --- CORREÇÃO PRINCIPAL DO LAYOUT --- */
+.sidebar {
+    width: 280px;
+    min-height: 100vh;
+    background-color: #0c1c2c; /* Um azul marinho um pouco mais escuro */
+    padding: 1rem;
+    flex-shrink: 0; /* Impede a sidebar de encolher */
+}
+
+.main-content {
+    flex-grow: 1; /* Permite que o conteúdo principal cresça */
+    padding: 2rem; /* Adiciona espaçamento interno */
+    width: calc(100% - 280px); /* FORÇA a largura a ocupar o resto */
+}
+/* --- FIM DA CORREÇÃO --- */
+
+
+/* Estilo da Sidebar (continua o mesmo) */
+.sidebar-header {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #495057;
+}
+.sidebar-header h3 {
+    color: white;
+}
+.sidebar .nav-link {
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.5rem;
+}
+.sidebar .nav-link:hover, .sidebar .nav-link.active {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+}
+
+
+/* Melhora a aparência dos cards no tema escuro */
+.card {
+    background-color: #1a2a38;
+    border: 1px solid #34495e;
+}
+
+.card-header {
+    background-color: #2c3e50;
+    border-bottom: 1px solid #34495e;
+}
+
+.chart-container {
+    position: relative;
+    height: 350px; /* Usamos 'height' em vez de 'max-height' para ser mais direto */
+}
+
+
+
+/* --- ESTILOS PARA RESPONSIVIDADE (TELAS PEQUENAS) --- */
+
+/* A 'media query' abaixo só aplica estes estilos em telas com largura máxima de 992px (tablets e celulares) */
+@media (max-width: 992px) {
+    .sidebar {
+        position: fixed; /* Fica fixa na tela */
+        top: 0;
+        left: -280px; /* Começa escondida para fora da tela */
+        z-index: 1030; /* Garante que fique por cima do conteúdo */
+        transition: left 0.3s ease; /* Animação suave ao abrir/fechar */
+    }
+
+    .sidebar.active {
+        left: 0; /* Quando ativa, a sidebar desliza para dentro da tela */
+    }
+
+    .main-content {
+        width: 100%; /* Em telas pequenas, o conteúdo principal ocupa toda a largura */
+    }
+
+    .sidebar-toggle {
+        display: block; /* Mostra o botão hamburger */
+    }
+}
+
+/* Esconde o botão hamburger em telas grandes */
+.sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1031;
+    background-color: #2c3e50;
+    border: 1px solid #34495e;
+}
+
+
+
+/* Estilos para valores financeiros */
+.table .valor-receita {
+    color: var(--verde-sucesso) !important; /* Adicionado !important como garantia */
+    font-weight: bold;
+}
+
+.table .valor-despesa {
+    color: var(--vermelho-perigo) !important; /* Adicionado !important como garantia */
+    font-weight: bold;
+}
