@@ -1,39 +1,54 @@
+# motor_analise.py (VERSÃO FINAL CORRIGIDA)
+
 import pandas as pd
 import numpy as np
 from .models import Regra, Transacao, Extrato
 
-# --- Funções de processamento (Especialistas) ---
-def _processar_formato_pix(df):
-    print("Formato PIX detectado.")
+# --- ESPECIALISTA 1: Processa o formato "Caixa Federal" ---
+def _processar_formato_caixa(df):
+    print("Formato Caixa Federal detectado.")
+
+    # CORREÇÃO: Usando nome da coluna em minúsculo ('origem_descricao')
+    df['origem_descricao'] = np.where(
+        df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True).isna(), 
+        'Historico', 
+        'Nome/Razao Social'
+    )
+    
+    df['Nome/Razão Social'] = df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True)
+    df['Nome/Razão Social'] = df['Nome/Razão Social'].fillna(df['Histórico'])
+    
     df_padronizado = df.rename(columns={
-        'Valor (R$)': 'Valor',
-        'Remetente/Destinatario': 'Descricao',
-        'Tipo de Pix': 'Tipo',
-        'Data': 'Data'
+        'Valor Lançamento': 'Valor',
+        'Nome/Razão Social': 'Descricao',
+        'Data Lançamento': 'Data'
     })
     
     df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
-    df_padronizado['Topico'] = np.where(df_padronizado['Tipo'] == 'Enviado', 'Despesa', 'Receita')
-    return df_padronizado
-
-def _processar_formato_nubank(df):
-    print("Formato Nubank/CSV detectado.")
-    df_padronizado = df.rename(columns={'Descrição': 'Descricao'})
-    df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
     df_padronizado['Topico'] = np.where(df_padronizado['Valor'] < 0, 'Despesa', 'Receita')
     df_padronizado['Valor'] = df_padronizado['Valor'].abs()
     return df_padronizado
 
+# --- ESPECIALISTA 2: Processa o formato "Sicoob" ---
 def _processar_formato_sicoob(df):
     print("Formato Sicoob detectado.")
+
+    # CORREÇÃO: Usando nome da coluna em minúsculo ('origem_descricao')
+    df['origem_descricao'] = 'Nome/Razao Social'
+
     df_padronizado = df.rename(columns={
-        'Histórico': 'Descricao',
-        'Valor Lançamento': 'Valor',
-        'Data Lançamento': 'Data'
+        'Nome/Razão Social': 'Descricao',
+        'VALOR': 'Valor',
+        'DATA': 'Data'
     })
+    
+    df_padronizado['Valor'] = df_padronizado['Valor'].astype(str)
+    df_padronizado['Topico'] = np.where(df_padronizado['Valor'].str.contains('C', na=False), 'Receita', 'Despesa')
+    df_padronizado['Valor'] = df_padronizado['Valor'].str.replace('C', '', regex=False).str.replace('D', '', regex=False).str.strip()
+    df_padronizado['Valor'] = df_padronizado['Valor'].str.replace('.', '', regex=False)
+    df_padronizado['Valor'] = df_padronizado['Valor'].str.replace(',', '.', regex=False)
     df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
-    df_padronizado['Topico'] = np.where(df_padronizado['Valor'] < 0, 'Despesa', 'Receita')
-    df_padronizado['Valor'] = df_padronizado['Valor'].abs()
+    
     return df_padronizado
 
 
@@ -41,19 +56,18 @@ def _processar_formato_sicoob(df):
 def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
     
     try:
-        # AVISANDO AO PANDAS QUE A VÍRGULA É O SEPARADOR DECIMAL
-        df = pd.read_excel(arquivo_extrato, decimal=',')
-        df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1, decimal=',')
+        df_normal = pd.read_excel(arquivo_extrato)
+        df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
     except Exception as e:
         raise ValueError(f"Não foi possível ler o ficheiro Excel. Erro: {e}")
 
-    if 'Tipo de Pix' in df.columns and 'Situacao' in df.columns:
-        df_processado = _processar_formato_pix(df)
-    elif 'Identificador' in df.columns and 'Descrição' in df.columns:
-        df_processado = _processar_formato_nubank(df)
-    elif 'Histórico' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
-        df_processado = _processar_formato_sicoob(df_com_skip)
+    if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
+        df_processado = _processar_formato_caixa(df_com_skip)
+    elif 'Nome/Razão Social' in df_normal.columns and 'VALOR' in df_normal.columns:
+        df_processado = _processar_formato_sicoob(df_normal)
     else:
+        print("Colunas encontradas (tentativa 1):", df_normal.columns)
+        print("Colunas encontradas (tentativa 2):", df_com_skip.columns)
         raise ValueError("Formato de extrato não reconhecido.")
 
     regras_do_usuario = Regra.objects.filter(usuario=usuario_logado)
@@ -69,32 +83,8 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
                 return categoria
         return 'Não categorizado'
 
-    # --- CORREÇÃO NA LÓGICA DE LIMPEZA ---
-    def _limpar_descricao_inteligente(descricao):
-        # Converte para string para segurança
-        descricao_str = str(descricao)
-        
-        # Se a descrição for nula ou vazia, retorna a própria descrição original
-        if pd.isna(descricao) or not descricao_str.strip():
-            return descricao_str
-        
-        try:
-            parts = descricao_str.split(' - ')
-            if len(parts) > 1:
-                # Retorna a primeira parte relevante após o ' - '
-                return parts[1].strip()
-        except:
-            pass
-        # Se a limpeza falhar ou não encontrar o separador, retorna a descrição original
-        return descricao_str
-    
-    # Garante que a coluna 'Descricao' é do tipo string e preenche valores nulos
     df_processado['Descricao'] = df_processado['Descricao'].fillna('').astype(str)
-    
-    # Aplica a limpeza e a categorização
-    df_processado['DescricaoLimpa'] = df_processado['Descricao'].apply(_limpar_descricao_inteligente)
     df_processado['Subtopico'] = df_processado['Descricao'].apply(categorizar_transacao)
-    # --- FIM DA CORREÇÃO ---
 
     Transacao.objects.filter(extrato=extrato_obj).delete()
     for index, linha in df_processado.iterrows():
@@ -102,10 +92,12 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
             extrato=extrato_obj,
             usuario=usuario_logado,
             data=linha.get('Data', ''),
-            descricao=linha.get('Descricao', ''), # <-- CORREÇÃO: Guarda a descrição ORIGINAL
+            descricao=linha.get('Descricao', ''),
             valor=linha.get('Valor', 0.0),
             topico=linha.get('Topico', ''),
-            subtopico=linha.get('Subtopico', '')
+            subtopico=linha.get('Subtopico', ''),
+            # CORREÇÃO: Usando .get() com o nome minúsculo
+            origem_descricao=linha.get('origem_descricao', '')
         )
     
     df_receitas = df_processado[df_processado['Topico'] == 'Receita']
@@ -119,7 +111,8 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
     resumo_receitas = df_receitas.groupby('Subtopico')['Valor'].sum().sort_values(ascending=False)
     
     nao_categorizadas_bruto = df_processado[df_processado['Subtopico'] == 'Não categorizado']
-    colunas_desejadas = ['Topico', 'Data', 'DescricaoLimpa', 'Valor']
+    # A lista de colunas aqui já estava correta, usando minúsculo
+    colunas_desejadas = ['Topico', 'Data', 'Descricao', 'Valor', 'origem_descricao']
     nao_categorizadas_limpo = nao_categorizadas_bruto[colunas_desejadas]
 
     return total_receitas, total_despesas, saldo_liquido, resumo_despesas, nao_categorizadas_limpo, resumo_receitas

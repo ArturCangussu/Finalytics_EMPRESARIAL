@@ -102,7 +102,7 @@ def pagina_relatorio(request, extrato_id):
         # ... (código para relatório vazio) ...
         return render(request, 'analisador/relatorio.html', contexto)
 
-    df = pd.DataFrame(list(transacoes.values('data', 'descricao', 'valor', 'topico', 'subtopico')))
+    df = pd.DataFrame(list(transacoes.values('data', 'descricao', 'valor', 'topico', 'subtopico', 'origem_descricao')))
     df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
     
     # --- INÍCIO DA LÓGICA DE LIMPEZA (MOVIDA PARA CÁ) ---
@@ -150,7 +150,7 @@ def pagina_relatorio(request, extrato_id):
     nao_cat_df = df[df['Subtópico'] == 'Não categorizado'].copy()
     # Renomeia a coluna limpa para o template usar
     nao_cat_df = nao_cat_df.rename(columns={'DescricaoLimpa': 'Remetente_Destinatario'})
-    colunas_desejadas = ['Tópico', 'Data', 'Remetente_Destinatario', 'Valor']
+    colunas_desejadas = ['Tópico', 'Data', 'Remetente_Destinatario', 'Valor', 'origem_descricao']
     
     if nao_cat_df.empty:
         nao_cat = pd.DataFrame(columns=colunas_desejadas)

@@ -147,7 +147,11 @@
                     <tr>
                         <td>{{ linha.Tópico }}</td>
                         <td>{{ linha.Data }}</td>
-                        <td>{{ linha.Remetente_Destinatario }}</td>
+                        <td>
+                            <span class="{% if linha.origem_descricao == 'Historico' %}destaque-historico{% endif %}">
+                                {{ linha.Remetente_Destinatario }}
+                            </span>
+                        </td>
                             <td class="text-end font-monospace {% if linha.Tópico == 'Despesa' %}valor-despesa{% elif linha.Tópico == 'Receita' %}valor-receita{% endif %}">
                             R$ {{ linha.Valor|floatformat:2 }}
                         </td>
