@@ -75,10 +75,25 @@ def detalhe_categoria(request, extrato_id, nome_categoria):
         subtopico=nome_categoria
     ).order_by('data')
 
+    # =======================================================================
+    # ================ LÓGICA DE FORMATAÇÃO DE DATA ADICIONADA ===============
+    # =======================================================================
+    # Para cada transação, criamos um novo atributo com a data já formatada
+    for t in transacoes:
+        # Usamos o 'pd.to_datetime' que é robusto para converter os dados
+        data_obj = pd.to_datetime(t.data, errors='coerce')
+        
+        # Verificamos se a data é válida antes de formatar
+        if pd.notna(data_obj):
+            t.data_formatada = data_obj.strftime('%d/%m/%Y')
+        else:
+            t.data_formatada = 'Data Inválida' # Ou pode deixar em branco: ''
+    # =======================================================================
+
     contexto = {
         'extrato': extrato,
         'nome_categoria': nome_categoria,
-        'transacoes': transacoes
+        'transacoes': transacoes # A lista de transações agora tem o novo atributo
     }
     return render(request, 'analisador/detalhe_categoria.html', contexto)
 

@@ -23,7 +23,7 @@
                     <tbody>
                         {% for transacao in transacoes %}
                         <tr>
-                            <td>{{ transacao.data }}</td>
+                            <td>{{ transacao.data_formatada }}</td>
                             <td>{{ transacao.descricao_limpa }}</td>
                             <td class="text-end font-monospace {% if transacao.topico == 'Receita' %}valor-receita{% else %}valor-despesa{% endif %}">R$ {{ transacao.valor|floatformat:2 }}</td>
                             <td class="text-center">
