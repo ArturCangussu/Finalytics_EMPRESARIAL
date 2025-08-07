@@ -114,81 +114,47 @@ def pagina_relatorio(request, extrato_id):
     transacoes = Transacao.objects.filter(extrato=extrato)
 
     if not transacoes.exists():
-        # ... (código para relatório vazio) ...
+        contexto = { 'extrato': extrato, 'total_receitas': '0,00', 'total_despesas': '0,00', 'saldo_liquido': '0,00', 'resumo_despesas': pd.DataFrame(), 'resumo_receitas': pd.DataFrame(), 'nao_categorizadas': pd.DataFrame(), 'labels_grafico': [], 'dados_grafico': [], 'valor_total_despesas_detalhe': 0, 'valor_total_receitas_detalhe': 0 }
         return render(request, 'analisador/relatorio.html', contexto)
 
     df = pd.DataFrame(list(transacoes.values('data', 'descricao', 'valor', 'topico', 'subtopico', 'origem_descricao')))
     df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
     
-    # --- INÍCIO DA LÓGICA DE LIMPEZA (MOVIDA PARA CÁ) ---
-    def _limpar_descricao_inteligente(descricao):
-        if pd.isna(descricao) or not str(descricao).strip():
-            return str(descricao) # Retorna o original se for vazio
-        
-        descricao_str = str(descricao)
-        try:
-            parts = descricao_str.split(' - ')
-            if len(parts) > 1:
-                # Procura pela primeira parte que não pareça um código/CNPJ
-                for part in parts[1:]:
-                    if not any(char.isdigit() for char in part[:4]):
-                        return part.strip()
-                return parts[1].strip()
-        except:
-            pass
-        return descricao_str
+    df['Data'] = pd.to_datetime(df['data'], errors='coerce').dt.strftime('%d/%m/%Y')
     
-    # Cria a coluna limpa para exibição
-    df['DescricaoLimpa'] = df['descricao'].apply(_limpar_descricao_inteligente)
-    # --- FIM DA LÓGICA DE LIMPEZA ---
+    def limpar_descricao_para_exibicao(d):
+        d_str = str(d or '')
+        if ' - ' in d_str:
+            return d_str.split(' - ')[-1].strip()
+        return d_str
+    
+    df['DescricaoLimpa'] = df['descricao'].apply(limpar_descricao_para_exibicao)
 
-    df = df.rename(columns={
-        'subtopico': 'Subtópico', 'valor': 'Valor', 'topico': 'Tópico',
-        'descricao': 'Remetente/Destinatario', 'data': 'Data',
-    })
-    
-    df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce').dt.strftime('%d/%m/%Y')
+    df = df.rename(columns={ 'subtopico': 'Subtópico', 'valor': 'Valor', 'topico': 'Tópico', 'DescricaoLimpa': 'Remetente_Destinatario' })
     
     df_receitas = df[df['Tópico'] == 'Receita']
     df_despesas = df[df['Tópico'] == 'Despesa']
-
-    total_r = df_receitas['Valor'].sum()
-    total_d = df_despesas['Valor'].sum()
+    total_r, total_d = df_receitas['Valor'].sum(), df_despesas['Valor'].sum()
     saldo_l = total_r - total_d
 
     resumo_d_series = df_despesas.groupby('Subtópico')['Valor'].sum().sort_values(ascending=False)
     resumo_d = resumo_d_series.reset_index()
-    
     resumo_r_series = df_receitas.groupby('Subtópico')['Valor'].sum().sort_values(ascending=False)
     resumo_r = resumo_r_series.reset_index()
     
     nao_cat_df = df[df['Subtópico'] == 'Não categorizado'].copy()
-    # Renomeia a coluna limpa para o template usar
-    nao_cat_df = nao_cat_df.rename(columns={'DescricaoLimpa': 'Remetente_Destinatario'})
     colunas_desejadas = ['Tópico', 'Data', 'Remetente_Destinatario', 'Valor', 'origem_descricao']
-    
-    if nao_cat_df.empty:
-        nao_cat = pd.DataFrame(columns=colunas_desejadas)
-    else:
-        nao_cat = nao_cat_df[colunas_desejadas]
+    nao_cat = nao_cat_df.reindex(columns=colunas_desejadas).fillna('')
     
     labels_grafico = list(resumo_d_series.index)
     dados_grafico = [float(valor) for valor in resumo_d_series.abs().values]
     
     contexto = {
-        'extrato': extrato,
-        'total_receitas': f'{total_r:,.2f}',
-        'total_despesas': f'{abs(total_d):,.2f}',
-        'saldo_liquido': f'{saldo_l:,.2f}',
-        'resumo_despesas': resumo_d,
-        'resumo_receitas': resumo_r,
-        'nao_categorizadas': nao_cat,
-        'labels_grafico': labels_grafico,
-        'dados_grafico': dados_grafico,
-        'valor_total_despesas_detalhe': total_d,
-        'valor_total_receitas_detalhe': total_r,
+        'extrato': extrato, 'total_receitas': f'{total_r:,.2f}', 'total_despesas': f'{abs(total_d):,.2f}', 'saldo_liquido': f'{saldo_l:,.2f}',
+        'resumo_despesas': resumo_d, 'resumo_receitas': resumo_r, 'nao_categorizadas': nao_cat,
+        'labels_grafico': labels_grafico, 'dados_grafico': dados_grafico,
+        'valor_total_despesas_detalhe': total_d, 'valor_total_receitas_detalhe': total_r,
     }
-
     return render(request, 'analisador/relatorio.html', contexto)
 
 
