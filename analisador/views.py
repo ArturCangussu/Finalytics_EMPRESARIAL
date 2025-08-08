@@ -22,7 +22,7 @@ def pagina_inicial(request):
         
         # --- VALIDAÇÃO DO TIPO DE ARQUIVO ---
         # Verifica se o nome do arquivo termina com .xlsx
-        if not arquivo_extrato.name.endswith('.xlsx'):
+        if not (arquivo_extrato.name.lower().endswith('.xlsx') or arquivo_extrato.name.lower().endswith('.html')):
             messages.error(request, 'Erro: O arquivo do extrato deve ser no formato .xlsx.')
             return render(request, 'analisador/pagina_inicial.html', contexto)
         # --- FIM DA VALIDAÇÃO ---
