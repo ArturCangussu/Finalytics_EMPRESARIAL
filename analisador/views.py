@@ -108,55 +108,103 @@ def historico_extratos(request):
     return render(request, 'analisador/historico.html', contexto)
 
 
+# em analisador/views.py
+
 @login_required
 def pagina_relatorio(request, extrato_id):
     extrato = Extrato.objects.get(id=extrato_id, usuario=request.user)
+    
+    # 1. PEGAR OS DADOS BRUTOS DO BANCO
     transacoes = Transacao.objects.filter(extrato=extrato)
 
-    if not transacoes.exists():
-        contexto = { 'extrato': extrato, 'total_receitas': '0,00', 'total_despesas': '0,00', 'saldo_liquido': '0,00', 'resumo_despesas': pd.DataFrame(), 'resumo_receitas': pd.DataFrame(), 'nao_categorizadas': pd.DataFrame(), 'labels_grafico': [], 'dados_grafico': [], 'valor_total_despesas_detalhe': 0, 'valor_total_receitas_detalhe': 0 }
-        return render(request, 'analisador/relatorio.html', contexto)
+    # Pega os valores dos filtros da URL (request.GET)
+    search_query = request.GET.get('q', None)
+    data_inicio = request.GET.get('data_inicio', None)
+    data_fim = request.GET.get('data_fim', None)
 
+    # 2. CRIAR O DATAFRAME INICIAL
     df = pd.DataFrame(list(transacoes.values('data', 'descricao', 'valor', 'topico', 'subtopico', 'origem_descricao')))
+
+    # Se não houver transação nenhuma, podemos parar aqui
+    if df.empty:
+        contexto_vazio = { 'extrato': extrato, 'total_receitas': '0,00', 'total_despesas': '0,00', 'saldo_liquido': '0,00', 'resumo_despesas': pd.DataFrame(), 'resumo_receitas': pd.DataFrame(), 'nao_categorizadas': pd.DataFrame(), 'labels_grafico': [], 'dados_grafico': [], 'valor_total_despesas_detalhe': 0, 'valor_total_receitas_detalhe': 0, 'labels_grafico_receitas': [], 'dados_grafico_receitas': [], 'search_query': search_query, 'data_inicio': data_inicio, 'data_fim': data_fim }
+        return render(request, 'analisador/relatorio.html', contexto_vazio)
+
+    # 3. APLICAR TODOS OS FILTROS PRIMEIRO
+    # Converte a data para um formato de data real para poder filtrar por período
+    df['data_dt'] = pd.to_datetime(df['data'], errors='coerce')
+
+    if search_query:
+        df = df[df['descricao'].str.contains(search_query, case=False, na=False)]
+    
+    if data_inicio:
+        df = df[df['data_dt'] >= pd.to_datetime(data_inicio)]
+    
+    if data_fim:
+        df = df[df['data_dt'] <= pd.to_datetime(data_fim)]
+
+    # 4. AGORA, FAZER TODOS OS CÁLCULOS E PROCESSAMENTOS COM O DATAFRAME JÁ FILTRADO
+    
     df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
     
-    df['Data'] = pd.to_datetime(df['data'], errors='coerce').dt.strftime('%d/%m/%Y')
+    # Formata a data para exibição no formato brasileiro
+    df['DataFormatada'] = df['data_dt'].dt.strftime('%d/%m/%Y')
     
     def limpar_descricao_para_exibicao(d):
         d_str = str(d or '')
         if ' - ' in d_str:
             return d_str.split(' - ')[-1].strip()
         return d_str
-    
     df['DescricaoLimpa'] = df['descricao'].apply(limpar_descricao_para_exibicao)
 
-    df = df.rename(columns={ 'subtopico': 'Subtópico', 'valor': 'Valor', 'topico': 'Tópico', 'DescricaoLimpa': 'Remetente_Destinatario' })
+    df = df.rename(columns={
+        'DataFormatada': 'Data',
+        'subtopico': 'Subtópico',
+        'valor': 'Valor',
+        'topico': 'Tópico',
+        'DescricaoLimpa': 'Remetente_Destinatario'
+    })
     
     df_receitas = df[df['Tópico'] == 'Receita']
     df_despesas = df[df['Tópico'] == 'Despesa']
     total_r, total_d = df_receitas['Valor'].sum(), df_despesas['Valor'].sum()
     saldo_l = total_r - total_d
 
+    # Resumos (agora baseados nos dados filtrados)
     resumo_d_series = df_despesas.groupby('Subtópico')['Valor'].sum().sort_values(ascending=False)
     resumo_d = resumo_d_series.reset_index()
     resumo_r_series = df_receitas.groupby('Subtópico')['Valor'].sum().sort_values(ascending=False)
     resumo_r = resumo_r_series.reset_index()
     
+    # Tabela de não categorizadas (agora baseada nos dados filtrados)
     nao_cat_df = df[df['Subtópico'] == 'Não categorizado'].copy()
     colunas_desejadas = ['Tópico', 'Data', 'Remetente_Destinatario', 'Valor', 'origem_descricao']
     nao_cat = nao_cat_df.reindex(columns=colunas_desejadas).fillna('')
     
+    # Gráficos
     labels_grafico = list(resumo_d_series.index)
     dados_grafico = [float(valor) for valor in resumo_d_series.abs().values]
     
+    labels_grafico_receitas = list(resumo_r_series.index)
+    dados_grafico_receitas = [float(valor) for valor in resumo_r_series.abs().values]
+    
     contexto = {
-        'extrato': extrato, 'total_receitas': f'{total_r:,.2f}', 'total_despesas': f'{abs(total_d):,.2f}', 'saldo_liquido': f'{saldo_l:,.2f}',
-        'resumo_despesas': resumo_d, 'resumo_receitas': resumo_r, 'nao_categorizadas': nao_cat,
+        'extrato': extrato, 
+        'total_receitas': f'{total_r:,.2f}', 
+        'total_despesas': f'{abs(total_d):,.2f}', 
+        'saldo_liquido': f'{saldo_l:,.2f}',
+        'resumo_despesas': resumo_d, 
+        'resumo_receitas': resumo_r, 
+        'nao_categorizadas': nao_cat,
         'labels_grafico': labels_grafico, 'dados_grafico': dados_grafico,
         'valor_total_despesas_detalhe': total_d, 'valor_total_receitas_detalhe': total_r,
+        'labels_grafico_receitas': labels_grafico_receitas, 'dados_grafico_receitas': dados_grafico_receitas,
+        # Devolve os valores do filtro para a tela
+        'search_query': search_query, 
+        'data_inicio': data_inicio, 
+        'data_fim': data_fim
     }
     return render(request, 'analisador/relatorio.html', contexto)
-
 
 
 
