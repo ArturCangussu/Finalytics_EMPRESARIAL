@@ -104,72 +104,78 @@
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-header"><h2 class="h5 mb-0">Transações Não Categorizadas</h2></div>
-        <div class="card-body">
-            <p>Marque as transações e defina uma categoria para todas de uma vez.</p>
+<div class="card mb-4">
+    <div class="card-header"><h2 class="h5 mb-0">Transações Não Categorizadas</h2></div>
+    <div class="card-body">
+        <p>Marque as transações abaixo e defina uma categoria para todas de uma vez no final da tabela.</p>
+        
+        {% if not nao_categorizadas.empty %}
             
-            {% if not nao_categorizadas.empty %}
-                <form action="{% url 'criar_regras_em_lote' %}" method="POST">
-                    {% csrf_token %}
-                    <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 1%;"><input class="form-check-input" type="checkbox" id="selecionar-todos"></th>
+                            <th>Tópico</th>
+                            <th>Data</th>
+                            <th>Remetente/Destinatário</th>
+                            <th class="text-end">Valor</th>
+                            <th style="width: 30%;">Ação Rápida Individual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for index, linha in nao_categorizadas.iterrows %}
+                        <tr>
+                            <td>
+                                <input class="form-check-input checkbox-transacao" type="checkbox" value="{{ linha.Remetente_Destinatario }}">
+                            </td>
+                            <td>{{ linha.Tópico }}</td>
+                            <td>{{ linha.Data }}</td>
+                            <td>
+                                <span class="{% if linha.origem_descricao == 'Historico' %}destaque-historico{% endif %}">
+                                    {{ linha.Remetente_Destinatario }}
+                                </span>
+                            </td>
+                            <td class="text-end font-monospace {% if linha.Tópico == 'Despesa' %}valor-despesa{% else %}valor-receita{% endif %}">
+                                R$ {{ linha.Valor|floatformat:2 }}
+                            </td>
+                            <td>
+                                <form action="{% url 'criar_regra_rapida' %}" method="POST" class="d-flex">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="palavra_chave" value="{{ linha.Remetente_Destinatario }}">
+                                    <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+                                    <input type="text" name="categoria" class="form-control form-control-sm me-2" placeholder="Categoria individual" required>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th style="width: 1%;"><input class="form-check-input" type="checkbox" id="selecionar-todos"></th>
-                                    <th>Tópico</th>
-                                    <th>Data</th>
-                                    <th>Remetente/Destinatário</th>
-                                    <th class="text-end">Valor</th>
-                                    <th style="width: 30%;">Ação Rápida Individual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for index, linha in nao_categorizadas.iterrows %}
-                                <tr>
-                                    <td><input class="form-check-input checkbox-transacao" type="checkbox" name="palavras_chave_selecionadas" value="{{ linha.Remetente_Destinatario }}"></td>
-                                    <td>{{ linha.Tópico }}</td>
-                                    <td>{{ linha.Data }}</td>
-                                    <td>
-                                        <span class="{% if linha.origem_descricao == 'Historico' %}destaque-historico{% endif %}">
-                                            {{ linha.Remetente_Destinatario }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end font-monospace {% if linha.Tópico == 'Despesa' %}valor-despesa{% else %}valor-receita{% endif %}">
-                                        R$ {{ linha.Valor|floatformat:2 }}
-                                    </td>
-                                    <td>
-                                        <form action="{% url 'criar_regra_rapida' %}" method="POST" class="d-flex">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="palavra_chave" value="{{ linha.Remetente_Destinatario }}">
-                                            <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
-                                            <input type="text" name="categoria" class="form-control form-control-sm me-2" placeholder="Categoria individual" required>
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+            <form action="{% url 'criar_regras_em_lote' %}" method="POST" id="form-lote">
+                {% csrf_token %}
+                <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+                
+                <div id="hidden-inputs-lote"></div>
 
-                    <div class="card-footer d-flex justify-content-end align-items-center mt-3">
-                        <strong class="me-3">Para os itens marcados:</strong>
-                        <div class="input-group" style="width: 350px;">
-                            <input type="text" name="categoria_em_lote" class="form-control" placeholder="Digite a categoria para todos" required>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check2-all"></i> Aplicar a Todos
-                            </button>
-                        </div>
+                <div class="card-footer d-flex justify-content-end align-items-center mt-3">
+                    <strong class="me-3">Para os itens marcados:</strong>
+                    <div class="input-group" style="width: 350px;">
+                        <input type="text" name="categoria_em_lote" class="form-control" placeholder="Digite a categoria para todos" required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check2-all"></i> Aplicar a Todos
+                        </button>
                     </div>
-                </form>
-            {% else %}
-                <p class="text-center text-muted mt-4">Parabéns! Todas as suas transações foram categorizadas.</p>
-            {% endif %}
-        </div>
+                </div>
+            </form>
+
+        {% else %}
+            <p class="text-center text-muted mt-4">Parabéns! Todas as suas transações foram categorizadas.</p>
+        {% endif %}
     </div>
+</div>
 
     <script>
         // Script do Gráfico
@@ -190,16 +196,48 @@
                 options: { scales: { y: { beginAtZero: true } } }
             });
         }
+</script>
 
-        // Script para o checkbox "Selecionar Todos"
-        const selecionarTodos = document.getElementById('selecionar-todos');
-        if (selecionarTodos) {
-            selecionarTodos.addEventListener('click', function(event) {
-                let checkboxes = document.querySelectorAll('.checkbox-transacao');
-                for (let checkbox of checkboxes) {
-                    checkbox.checked = event.target.checked;
-                }
+<script>
+    // Script para o checkbox "Selecionar Todos" (continua o mesmo)
+    const selecionarTodos = document.getElementById('selecionar-todos');
+    if (selecionarTodos) {
+        selecionarTodos.addEventListener('click', function(event) {
+            let checkboxes = document.querySelectorAll('.checkbox-transacao');
+            for (let checkbox of checkboxes) {
+                checkbox.checked = event.target.checked;
+            }
+        });
+    }
+
+    // ================================================================
+    // =========== NOVO SCRIPT PARA CONECTAR OS CHECKBOXES ============
+    // ================================================================
+    const formLote = document.getElementById('form-lote');
+    if (formLote) {
+        formLote.addEventListener('submit', function(event) {
+            // Pega todos os checkboxes que estão marcados
+            const checkboxesMarcados = document.querySelectorAll('.checkbox-transacao:checked');
+
+            // Se nenhum estiver marcado, avisa o usuário e impede o envio
+            if (checkboxesMarcados.length === 0) {
+                alert('Por favor, selecione pelo menos uma transação para categorizar.');
+                event.preventDefault(); // Impede o envio do formulário
+                return;
+            }
+            
+            const containerInputs = document.getElementById('hidden-inputs-lote');
+            containerInputs.innerHTML = ''; // Limpa inputs de envios anteriores
+
+            // Para cada checkbox marcado, cria um input invisível dentro do formulário de lote
+            checkboxesMarcados.forEach(function(checkbox) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'palavras_chave_selecionadas';
+                input.value = checkbox.value;
+                containerInputs.appendChild(input);
             });
-        }
-    </script>
+        });
+    }
+</script>
 {% endblock %}

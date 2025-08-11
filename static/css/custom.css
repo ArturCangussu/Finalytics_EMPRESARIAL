@@ -126,3 +126,10 @@ body {
     color: #ecc75893;     /* Cor de alerta do Bootstrap, um amarelo vivo e legível */
     font-weight: bold;   /* Deixa o texto em negrito para se destacar ainda mais */
 }
+
+
+.td-checkbox {
+    width: 0.5%; /* Garante que a coluna seja o mais estreita possível *//*
+    vertical-align: middle; /* Alinha o checkbox verticalmente com o texto */
+    padding-right: 0.1rem !important; /* Reduz drasticamente o espaço à direita */
+}
