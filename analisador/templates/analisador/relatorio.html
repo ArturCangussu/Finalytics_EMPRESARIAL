@@ -11,10 +11,17 @@
         </div>
     </div>
     
-        <div class="card mb-4">
-        <div class="card-header">
-            <h2 class="h5 mb-0"><i class="bi bi-funnel"></i> Filtros</h2>
-        </div>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="h5 mb-0"><i class="bi bi-funnel"></i> Filtros</h2></div>
         <div class="card-body">
             <form method="GET" action="">
                 <div class="row g-3 align-items-end">
@@ -38,11 +45,8 @@
         </div>
     </div>
 
-    <!-- Resumo Geral -->
     <div class="card mb-4">
-        <div class="card-header">
-            <h2 class="h5 mb-0">Resumo Geral</h2>
-        </div>
+        <div class="card-header"><h2 class="h5 mb-0">Resumo Geral</h2></div>
         <div class="card-body">
             <p><strong>Receita Total:</strong> R$ {{ total_receitas }}</p>
             <p><strong>Despesa Total:</strong> R$ {{ total_despesas }}</p>
@@ -51,155 +55,151 @@
         </div>
     </div>
 
-    <!-- Gráfico -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h2 class="h5 mb-0">Despesas por Categoria (Gráfico)</h2>
-    </div>
-    <div class="card-body">
-        <!-- A classe .chart-container agora está em uma div interna -->
-        <div class="chart-container">
-            <canvas id="graficoDespesas"></canvas>
-        </div>
-    </div>
-</div>
-
-    <!-- Detalhamento de Despesas -->
     <div class="card mb-4">
-        <div class="card-header">
-            <h2 class="h5 mb-0">Detalhamento de Despesas por Categoria</h2>
-        </div>
+        <div class="card-header"><h2 class="h5 mb-0">Despesas por Categoria (Gráfico)</h2></div>
         <div class="card-body">
-            <table class="table table-hover">
-                <tbody>
+            <div class="chart-container">
+                <canvas id="graficoDespesas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="h5 mb-0">Detalhamento de Despesas por Categoria</h2></div>
+        <div class="card-body p-0"> <table class="table table-hover mb-0"> <tbody>
                     {% for index, linha in resumo_despesas.iterrows %}
                     <tr>
-                        <td>
-                            <a href="{% url 'detalhe_categoria' extrato_id=extrato.id nome_categoria=linha.Subtópico %}">
-                                {{ linha.Subtópico }}
-                            </a>
-                        </td>
+                        <td><a href="{% url 'detalhe_categoria' extrato_id=extrato.id nome_categoria=linha.Subtópico %}">{{ linha.Subtópico }}</a></td>
                         <td class="text-end font-monospace valor-despesa">R$ {{ linha.Valor|floatformat:2 }}</td>
                     </tr>
                     {% endfor %}
-                                <tfoot>
-                <tr class="table-group-divider"> <td class="valor-despesa">Total Despesas</td>
-                    <td class="text-end font-monospace  valor-despesa">
-                        R$ {{ valor_total_despesas_detalhe|floatformat:2 }}
-                    </td>
-                </tr>
-            </tfoot>
                 </tbody>
+                <tfoot>
+                    <tr class="table-group-divider">
+                        <td class="fw-bold">Total Despesas</td>
+                        <td class="text-end font-monospace fw-bold valor-despesa">R$ {{ valor_total_despesas_detalhe|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
 
-    <!-- Detalhamento de Receitas -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h2 class="h5 mb-0">Detalhamento de Receitas por Categoria</h2>
-    </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <tbody>
-                {% for index, linha in resumo_receitas.iterrows %}
-                <tr>
-                    <td>
-                        <!-- A MESMA LÓGICA DE LINK DAS DESPESAS, APLICADA AQUI -->
-                        <a href="{% url 'detalhe_categoria' extrato_id=extrato.id nome_categoria=linha.Subtópico %}">
-                            {{ linha.Subtópico }}
-                        </a>
-                    </td>
-                    <td class="text-end font-monospace valor-receita">R$ {{ linha.Valor|floatformat:2 }}</td>
-                </tr>
-                {% endfor %}
-                                                <tfoot>
-                <tr class="table-group-divider"> <td class="valor-receita">Total Despesas</td>
-                    <td class="text-end font-monospace  valor-receita">
-                        R$ {{ valor_total_despesas_detalhe|floatformat:2 }}
-                    </td>
-                </tr>
-            </tfoot>
-            </tbody>
-        </table>
-    </div>
-</div>
-<div class="card mb-4">
-    <div class="card-header">
-        <h2 class="h5 mb-0">Transações Não Categorizadas</h2>
-    </div>
-    <div class="card-body">
-        <p>Crie regras para as transações abaixo:</p>
-        
-        {% if not nao_categorizadas.empty %}
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Tópico</th>
-                        <th>Data</th>
-                        <th>Remetente/Destinatário</th>
-                        <th class="text-end">Valor</th>
-                        <th style="width: 30%;">Ação Rápida (Criar Regra)</th>
-                    </tr>
-                </thead>
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="h5 mb-0">Detalhamento de Receitas por Categoria</h2></div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
                 <tbody>
-                    {% for index, linha in nao_categorizadas.iterrows %}
+                    {% for index, linha in resumo_receitas.iterrows %}
                     <tr>
-                        <td>{{ linha.Tópico }}</td>
-                        <td>{{ linha.Data }}</td>
-                        <td>
-                            <span class="{% if linha.origem_descricao == 'Historico' %}destaque-historico{% endif %}">
-                                {{ linha.Remetente_Destinatario }}
-                            </span>
-                        </td>
-                            <td class="text-end font-monospace {% if linha.Tópico == 'Despesa' %}valor-despesa{% elif linha.Tópico == 'Receita' %}valor-receita{% endif %}">
-                            R$ {{ linha.Valor|floatformat:2 }}
-                        </td>
-                        <td>
-                            <!-- Pequeno formulário para cada linha -->
-                            <form action="{% url 'criar_regra_rapida' %}" method="POST" class="d-flex">
-                                {% csrf_token %}
-                                <!-- Campos escondidos que enviam informações importantes -->
-                                <input type="hidden" name="palavra_chave" value="{{ linha.Remetente_Destinatario }}">
-                                <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
-                                
-                                <!-- Campo visível para o usuário digitar a categoria -->
-                                <input type="text" name="categoria" class="form-control form-control-sm me-2" placeholder="Digite a categoria" required>
-                                <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
-                            </form>
-                        </td>
+                        <td><a href="{% url 'detalhe_categoria' extrato_id=extrato.id nome_categoria=linha.Subtópico %}">{{ linha.Subtópico }}</a></td>
+                        <td class="text-end font-monospace valor-receita">R$ {{ linha.Valor|floatformat:2 }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr class="table-group-divider">
+                        <td class="fw-bold">Total Receitas</td> <td class="text-end font-monospace fw-bold valor-receita">R$ {{ valor_total_receitas_detalhe|floatformat:2 }}</td> </tr>
+                </tfoot>
             </table>
-        {% else %}
-            <p>Parabéns! Todas as suas transações foram categorizadas.</p>
-        {% endif %}
+        </div>
     </div>
-</div>
 
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="h5 mb-0">Transações Não Categorizadas</h2></div>
+        <div class="card-body">
+            <p>Marque as transações e defina uma categoria para todas de uma vez.</p>
+            
+            {% if not nao_categorizadas.empty %}
+                <form action="{% url 'criar_regras_em_lote' %}" method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 1%;"><input class="form-check-input" type="checkbox" id="selecionar-todos"></th>
+                                    <th>Tópico</th>
+                                    <th>Data</th>
+                                    <th>Remetente/Destinatário</th>
+                                    <th class="text-end">Valor</th>
+                                    <th style="width: 30%;">Ação Rápida Individual</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for index, linha in nao_categorizadas.iterrows %}
+                                <tr>
+                                    <td><input class="form-check-input checkbox-transacao" type="checkbox" name="palavras_chave_selecionadas" value="{{ linha.Remetente_Destinatario }}"></td>
+                                    <td>{{ linha.Tópico }}</td>
+                                    <td>{{ linha.Data }}</td>
+                                    <td>
+                                        <span class="{% if linha.origem_descricao == 'Historico' %}destaque-historico{% endif %}">
+                                            {{ linha.Remetente_Destinatario }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end font-monospace {% if linha.Tópico == 'Despesa' %}valor-despesa{% else %}valor-receita{% endif %}">
+                                        R$ {{ linha.Valor|floatformat:2 }}
+                                    </td>
+                                    <td>
+                                        <form action="{% url 'criar_regra_rapida' %}" method="POST" class="d-flex">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="palavra_chave" value="{{ linha.Remetente_Destinatario }}">
+                                            <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+                                            <input type="text" name="categoria" class="form-control form-control-sm me-2" placeholder="Categoria individual" required>
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="card-footer d-flex justify-content-end align-items-center mt-3">
+                        <strong class="me-3">Para os itens marcados:</strong>
+                        <div class="input-group" style="width: 350px;">
+                            <input type="text" name="categoria_em_lote" class="form-control" placeholder="Digite a categoria para todos" required>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check2-all"></i> Aplicar a Todos
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            {% else %}
+                <p class="text-center text-muted mt-4">Parabéns! Todas as suas transações foram categorizadas.</p>
+            {% endif %}
+        </div>
+    </div>
 
     <script>
-    const ctx = document.getElementById('graficoDespesas');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: {{ labels_grafico|safe }},
-            datasets: [{
-            label: 'Despesas por Categoria (R$)',
-            data: {{ dados_grafico|safe }},
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-            y: {
-                beginAtZero: true
-            }
-            }
+        // Script do Gráfico
+        const ctx = document.getElementById('graficoDespesas');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: {{ labels_grafico|safe }},
+                    datasets: [{
+                        label: 'Despesas por Categoria (R$)',
+                        data: {{ dados_grafico|safe }},
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
         }
-    });
+
+        // Script para o checkbox "Selecionar Todos"
+        const selecionarTodos = document.getElementById('selecionar-todos');
+        if (selecionarTodos) {
+            selecionarTodos.addEventListener('click', function(event) {
+                let checkboxes = document.querySelectorAll('.checkbox-transacao');
+                for (let checkbox of checkboxes) {
+                    checkbox.checked = event.target.checked;
+                }
+            });
+        }
     </script>
 {% endblock %}

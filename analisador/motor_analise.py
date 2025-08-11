@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 from .models import Regra, Transacao, Extrato
+from bs4 import BeautifulSoup
 
 def converter_data_robusta(data):
     if isinstance(data, (pd.Timestamp, np.datetime64)): return data
@@ -10,49 +11,53 @@ def converter_data_robusta(data):
     except (ValueError, TypeError): return pd.to_datetime(data, dayfirst=True, errors='coerce')
 
 def _processar_formato_sicoob_html(arquivo_html):
-    print("Formato Sicoob HTML detectado.")
+    print("Formato Sicoob HTML detectado (usando BeautifulSoup).")
     try:
-        # Lê o conteúdo do arquivo (upload Django) como bytes e decodifica
         conteudo = arquivo_html.read().decode('latin-1', errors='ignore')
+        soup = BeautifulSoup(conteudo, 'html.parser')
+        
+        tabela = soup.find('table')
+        if not tabela:
+            raise ValueError("Nenhuma tag <table> foi encontrada no arquivo HTML.")
 
-        # Lê as tabelas do HTML já decodificado
-        tabelas = pd.read_html(conteudo, decimal=',', thousands='.')
-        df = tabelas[0]
+        dados = []
+        # ================================================================
+        # =========== CORREÇÃO: Lógica mais flexível para encontrar as linhas
+        # ================================================================
+        # Tenta encontrar o <tbody>, mas se não existir, usa a própria tabela
+        # como o local para procurar as linhas (tr).
+        corpo_tabela = tabela.find('tbody')
+        if not corpo_tabela:
+            corpo_tabela = tabela 
+        
+        # Agora procura por todas as linhas <tr> dentro do corpo_tabela
+        for linha_tr in corpo_tabela.find_all('tr'):
+        # ================================================================
+            celulas = linha_tr.find_all('td')
+            linha_dados = [cel.text.strip() for cel in celulas]
+            if len(linha_dados) >= 5 and 'Saldo Anterior' not in linha_dados[0]:
+                dados.append(linha_dados[:5])
+        
+        if not dados:
+            raise ValueError("Nenhuma linha de transação válida foi encontrada na tabela.")
+
+        colunas = ['Data', 'Documento', 'Descricao', 'Valor', 'Lancamento']
+        df = pd.DataFrame(dados, columns=colunas)
+
     except Exception as e:
-        raise ValueError(f"Não foi possível ler a tabela do arquivo HTML. Erro: {e}")
-
-    # Achatando colunas somente se forem tuplas (multi-nível)
-    df.columns = [
-        '_'.join([str(c) for c in col]).strip() if isinstance(col, tuple) else str(col).strip()
-        for col in df.columns.values
-    ]
-    print("--- DEBUG: Nomes das colunas processadas ---", df.columns.tolist())
-
-    # Padronizando nomes de colunas
-    df_padronizado = df.rename(columns={
-        'Data_Data': 'Data',
-        'Histórico_Histórico': 'Descricao',
-        'Valor (R$)_Valor (R$)': 'Valor'
-    })
+        raise ValueError(f"Não foi possível processar o arquivo HTML com BeautifulSoup. Erro: {e}")
     
-    # Determina Receita ou Despesa
-    if 'Lançamento_Lançamento' in df_padronizado.columns:
-        df_padronizado['Topico'] = np.where(
-            df_padronizado['Lançamento_Lançamento'] == 'C', 'Receita', 'Despesa'
-        )
-    else:
-        df_padronizado['Topico'] = 'Despesa'  # fallback se não existir a coluna
-
-    # Ajusta valores
+    df_padronizado = df
+    df_padronizado['Topico'] = np.where(df_padronizado['Lancamento'] == 'C', 'Receita', 'Despesa')
+    
     df_padronizado['Valor'] = pd.to_numeric(
-        df_padronizado['Valor'], errors='coerce'
+        df_padronizado['Valor'].str.replace('.', '', regex=False).str.replace(',', '.', regex=False),
+        errors='coerce'
     ).fillna(0).abs()
-
+    
     df_padronizado['origem_descricao'] = 'Historico'
-
-    # Converte datas com robustez
     df_padronizado['Data'] = df_padronizado['Data'].apply(converter_data_robusta)
-
+    
     return df_padronizado
 
 def _processar_formato_caixa(df):
@@ -68,7 +73,9 @@ def _processar_formato_caixa(df):
     return df_padronizado
 
 def _processar_formato_sicoob(df):
+    # Esta função é para o Sicoob.xlsx
     print("Formato Sicoob XLSX detectado.")
+    # ... (código para o XLSX continua o mesmo) ...
     df['origem_descricao'] = 'Historico'
     df_padronizado = df.rename(columns={'HISTÓRICO': 'Descricao', 'VALOR': 'Valor', 'DATA': 'Data'})
     df_padronizado['Data'] = df_padronizado['Data'].apply(converter_data_robusta)

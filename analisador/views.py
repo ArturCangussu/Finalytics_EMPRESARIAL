@@ -207,14 +207,13 @@ def comparar_extratos(request):
 
 @login_required
 def reprocessar_relatorio(request, extrato_id):
+    # ... (a preparação das regras continua a mesma)
     regras_do_usuario = Regra.objects.filter(usuario=request.user)
-    regras_de_categorizacao = {
-        regra.palavra_chave: regra.categoria for regra in regras_do_usuario
-    }
+    regras_de_categorizacao = { regra.palavra_chave: regra.categoria for regra in regras_do_usuario }
 
     def categorizar_transacao(descricao):
-        if not isinstance(descricao, str):
-            return 'Descrição Inválida'
+        # ... (a função de categorizar continua a mesma)
+        if not isinstance(descricao, str): return 'Descrição Inválida'
         for palavra_chave, categoria in regras_de_categorizacao.items():
             if palavra_chave.lower() in descricao.lower():
                 return categoria
@@ -223,9 +222,12 @@ def reprocessar_relatorio(request, extrato_id):
     transacoes_para_atualizar = Transacao.objects.filter(extrato_id=extrato_id, usuario=request.user)
 
     for transacao in transacoes_para_atualizar:
-        transacao.subtopico = categorizar_transacao(transacao.descricao)
-        transacao.save()
+        # SÓ REPROCESSA SE A TRANSAÇÃO NÃO ESTIVER "TRAVADA"
+        if not transacao.categorizacao_manual:
+            transacao.subtopico = categorizar_transacao(transacao.descricao)
+            transacao.save()
 
+    messages.success(request, "O relatório foi reprocessado com sucesso!")
     return redirect('pagina_relatorio', extrato_id=extrato_id)
 
 @login_required
@@ -287,10 +289,14 @@ def apagar_regra(request, regra_id):
 @login_required
 def editar_transacao(request, transacao_id):
     transacao = Transacao.objects.get(id=transacao_id, usuario=request.user)
-    
+
     if request.method == 'POST':
         transacao.descricao = request.POST.get('descricao')
         transacao.subtopico = request.POST.get('subtopico')
+
+        # ATIVA A "TRAVA"
+        transacao.categorizacao_manual = True
+
         transacao.save()
         # Redireciona de volta para o relatório do extrato original
         return redirect('pagina_relatorio', extrato_id=transacao.extrato.id)
@@ -318,3 +324,33 @@ def cadastro_usuario(request):
         'form': form
     }
     return render(request, 'analisador/cadastro.html', contexto)
+
+
+@login_required
+def criar_regras_em_lote(request):
+    if request.method == 'POST':
+        # Pega a lista de todas as palavras-chave dos checkboxes que foram marcados
+        palavras_chave = request.POST.getlist('palavras_chave_selecionadas')
+        
+        # Pega a categoria que o usuário digitou no campo de texto
+        nova_categoria = request.POST.get('categoria_em_lote')
+        
+        extrato_id = request.POST.get('extrato_id')
+
+        if palavras_chave and nova_categoria and extrato_id:
+            # Para cada palavra-chave selecionada, cria uma nova regra
+            for palavra in palavras_chave:
+                # Usamos get_or_create para não criar regras duplicadas
+                Regra.objects.get_or_create(
+                    usuario=request.user,
+                    palavra_chave=palavra,
+                    defaults={'categoria': nova_categoria}
+                )
+            
+            messages.success(request, f'{len(palavras_chave)} regras foram criadas/atualizadas com a categoria "{nova_categoria}".')
+            # Redireciona para reprocessar o relatório e ver o resultado imediatamente
+            return redirect('reprocessar_relatorio', extrato_id=extrato_id)
+
+    # Se algo der errado, ou se não for POST, volta para a home
+    messages.error(request, 'Ocorreu um erro ao processar a solicitação.')
+    return redirect('home')

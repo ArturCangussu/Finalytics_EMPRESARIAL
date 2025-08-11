@@ -32,6 +32,8 @@ class Transacao(models.Model):
     topico = models.CharField(max_length=50)
     subtopico = models.CharField(max_length=100)
     origem_descricao = models.CharField(max_length=50, null=True, blank=True)
+    categorizacao_manual = models.BooleanField(default=False)
+
 
 
     def __str__(self):
