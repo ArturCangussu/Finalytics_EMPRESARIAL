@@ -55,14 +55,28 @@
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-header"><h2 class="h5 mb-0">Despesas por Categoria (Gráfico)</h2></div>
-        <div class="card-body">
-            <div class="chart-container">
-                <canvas id="graficoDespesas"></canvas>
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-0">Despesas por Categoria</h2></div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="graficoDespesas"></canvas>
+                </div>
             </div>
         </div>
     </div>
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-0">Receitas por Categoria</h2></div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="graficoReceitas"></canvas> {# Novo canvas com novo ID #}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
     <div class="card mb-4">
         <div class="card-header"><h2 class="h5 mb-0">Detalhamento de Despesas por Categoria</h2></div>
@@ -177,25 +191,50 @@
     </div>
 </div>
 
-    <script>
-        // Script do Gráfico
-        const ctx = document.getElementById('graficoDespesas');
-        if (ctx) {
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: {{ labels_grafico|safe }},
-                    datasets: [{
-                        label: 'Despesas por Categoria (R$)',
-                        data: {{ dados_grafico|safe }},
-                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: { scales: { y: { beginAtZero: true } } }
-            });
-        }
+<script>
+    // Gráfico 1: Despesas (VERMELHO)
+    const ctxDespesas = document.getElementById('graficoDespesas');
+    if (ctxDespesas && {{ dados_grafico|length }} > 0) {
+        new Chart(ctxDespesas, {
+            type: 'bar',
+            data: {
+                labels: {{ labels_grafico|safe }},
+                datasets: [{
+                    label: 'Despesas por Categoria (R$)',
+                    data: {{ dados_grafico|safe }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.6)', // Vermelho
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } } // Opcional: esconde a legenda se achar que polui
+            }
+        });
+    }
+
+    // Gráfico 2: Receitas (VERDE)
+    const ctxReceitas = document.getElementById('graficoReceitas');
+    if (ctxReceitas && {{ dados_grafico_receitas|length }} > 0) {
+        new Chart(ctxReceitas, {
+            type: 'bar',
+            data: {
+                labels: {{ labels_grafico_receitas|safe }},
+                datasets: [{
+                    label: 'Receitas por Categoria (R$)',
+                    data: {{ dados_grafico_receitas|safe }},
+                    backgroundColor: 'rgba(25, 135, 84, 0.6)', // Verde
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } } // Opcional
+            }
+        });
+    }
 </script>
 
 <script>
