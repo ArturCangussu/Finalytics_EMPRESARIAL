@@ -1,112 +1,329 @@
 {% extends 'analisador/base.html' %}
 
-{% block title %}Resultado da Conciliação{% endblock %}
+{% block title %}Relatório: {{ extrato.mes_referencia }}{% endblock %}
 
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-        <h1 class="h2 mb-0"><i class="bi bi-check2-circle me-3"></i>Resultado da Conciliação</h1>
-        <a href="{% url 'home' %}" class="btn btn-primary">Fazer Nova Conciliação</a>
+        <h1 class="h2 mb-0"><i class="bi bi-file-earmark-text me-3"></i>Relatório: {{ extrato.mes_referencia }}</h1>
+        <div>
+            <a href="{% url 'historico' %}" class="btn btn-secondary">Ver Histórico</a>
+            <a href="{% url 'home' %}" class="btn btn-info">Analisar Outro Extrato</a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="h5 mb-0"><i class="bi bi-funnel"></i> Filtros</h2></div>
+        <div class="card-body">
+            <form method="GET" action="">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="q" class="form-label">Buscar na Descrição:</label>
+                        <input type="text" name="q" id="q" class="form-control" value="{{ search_query|default:'' }}" placeholder="Ex: Mercado">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="data_inicio" class="form-label">De:</label>
+                        <input type="date" name="data_inicio" id="data_inicio" class="form-control" value="{{ data_inicio|default:'' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="data_fim" class="form-label">Até:</label>
+                        <input type="date" name="data_fim" id="data_fim" class="form-control" value="{{ data_fim|default:'' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="card mb-4">
-        <div class="card-header"><h2 class="h5 mb-0">Resumo da Análise</h2></div>
+        <div class="card-header"><h2 class="h5 mb-0">Resumo Geral</h2></div>
         <div class="card-body">
-            <div class="row text-center">
-                <div class="col-md-4">
-                    <h3 class="text-success">{{ conciliadas|length }}</h3>
-                    <p class="text-muted">Transações Conciliadas</p>
-                </div>
-                <div class="col-md-4">
-                    <h3 class="text-warning">{{ apenas_banco|length }}</h3>
-                    <p class="text-muted">Transações Apenas no Banco</p>
-                </div>
-                <div class="col-md-4">
-                    <h3 class="text-danger">{{ apenas_relatorio|length }}</h3>
-                    <p class="text-muted">Transações Apenas no Relatório</p>
+            <p><strong>Receita Total:</strong> R$ {{ total_receitas }}</p>
+            <p><strong>Despesa Total:</strong> R$ {{ total_despesas }}</p>
+            <hr>
+            <p><strong>Saldo Líquido:</strong> R$ {{ saldo_liquido }}</p>
+        </div>
+    </div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-0">Despesas por Categoria</h2></div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="graficoDespesas"></canvas>
                 </div>
             </div>
         </div>
     </div>
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-0">Receitas por Categoria</h2></div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="graficoReceitas"></canvas> {# Novo canvas com novo ID #}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    {% if apenas_banco %}
     <div class="card mb-4">
-        <div class="card-header bg-warning text-dark"><h2 class="h5 mb-0">⚠️ Apenas no Extrato Bancário (Possíveis Omissões de Lançamento)</h2></div>
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
+        <div class="card-header"><h2 class="h5 mb-0">Detalhamento de Despesas por Categoria</h2></div>
+        <div class="card-body p-0"> <table class="table table-hover mb-0"> <tbody>
+                    {% for index, linha in resumo_despesas.iterrows %}
                     <tr>
-                        <th>Data</th>
-                        <th>Descrição no Banco</th>
-                        <th class="text-end">Valor</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for transacao in apenas_banco %}
-                    <tr>
-                        <td>{{ transacao.Data|date:"d/m/Y" }}</td>
-                        <td>{{ transacao.Descricao_banco }}</td>
-                        <td class="text-end font-monospace valor-despesa">{{ transacao.Valor|floatformat:2 }}</td>
+                        <td><a href="{% url 'detalhe_categoria' extrato_id=extrato.id nome_categoria=linha.Subtópico %}">{{ linha.Subtópico }}</a></td>
+                        <td class="text-end font-monospace valor-despesa">R$ {{ linha.Valor|floatformat:2 }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr class="table-group-divider">
+                        <td class="fw-bold">Total Despesas</td>
+                        <td class="text-end font-monospace fw-bold valor-despesa">R$ {{ valor_total_despesas_detalhe|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
-    {% endif %}
 
-    {% if apenas_relatorio %}
     <div class="card mb-4">
-        <div class="card-header bg-danger text-white"><h2 class="h5 mb-0">🚨 Apenas no Relatório "Seu Condomínio" (Possíveis Lançamentos Incorretos)</h2></div>
-        <div class="table-responsive">
+        <div class="card-header"><h2 class="h5 mb-0">Detalhamento de Receitas por Categoria</h2></div>
+        <div class="card-body p-0">
             <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Descrição no Relatório</th>
-                        <th>Fornecedor</th>
-                        <th class="text-end">Valor</th>
-                    </tr>
-                </thead>
                 <tbody>
-                    {% for transacao in apenas_relatorio %}
+                    {% for index, linha in resumo_receitas.iterrows %}
                     <tr>
-                        <td>{{ transacao.Data|date:"d/m/Y" }}</td>
-                        <td>{{ transacao.Descricao_relatorio }}</td>
-                        <td>{{ transacao.Fornecedor }}</td>
-                        <td class="text-end font-monospace">{{ transacao.Valor|floatformat:2 }}</td>
+                        <td><a href="{% url 'detalhe_categoria' extrato_id=extrato.id nome_categoria=linha.Subtópico %}">{{ linha.Subtópico }}</a></td>
+                        <td class="text-end font-monospace valor-receita">R$ {{ linha.Valor|floatformat:2 }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr class="table-group-divider">
+                        <td class="fw-bold">Total Receitas</td> <td class="text-end font-monospace fw-bold valor-receita">R$ {{ valor_total_receitas_detalhe|floatformat:2 }}</td> </tr>
+                </tfoot>
             </table>
         </div>
     </div>
-    {% endif %}
 
-    {% if conciliadas %}
-    <div class="card mb-4">
-        <div class="card-header bg-success text-white"><h2 class="h5 mb-0">✅ Transações Conciliadas (Corretas)</h2></div>
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Descrição no Banco</th>
-                        <th>Descrição no Relatório</th>
-                        <th class="text-end">Valor</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for transacao in conciliadas %}
-                    <tr>
-                        <td>{{ transacao.Data|date:"d/m/Y" }}</td>
-                        <td>{{ transacao.Descricao_banco }}</td>
-                        <td>{{ transacao.Descricao_relatorio }}</td>
-                        <td class="text-end font-monospace">{{ transacao.Valor|floatformat:2 }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+<div class="card mb-4">
+    <div class="card-header"><h2 class="h5 mb-0">Transações Não Categorizadas</h2></div>
+    <div class="card-body">
+        <p>Marque as transações abaixo e defina uma categoria para todas de uma vez no final da tabela.</p>
+        
+        {% if not nao_categorizadas.empty %}
+            
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 1%;"><input class="form-check-input" type="checkbox" id="selecionar-todos"></th>
+                            <th>Tópico</th>
+                            <th>Data</th>
+                            <th>Remetente/Destinatário</th>
+                            <th class="text-end">Valor</th>
+                            <th style="width: 30%;">Ação Rápida Individual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for index, linha in nao_categorizadas.iterrows %}
+                        <tr class="linha-transacao">
+                            <td>
+                                <input class="form-check-input checkbox-transacao" type="checkbox" value="{{ linha.Remetente_Destinatario }}">
+                            </td>
+                            <td>{{ linha.Tópico }}</td>
+                            <td>{{ linha.Data }}</td>
+                            <td>
+                                <span class="{% if linha.origem_descricao == 'Historico' %}destaque-historico{% endif %}">
+                                    {{ linha.Remetente_Destinatario }}
+                                </span>
+                            </td>
+                            <td class="text-end font-monospace {% if linha.Tópico == 'Despesa' %}valor-despesa{% else %}valor-receita{% endif %}">
+                                R$ {{ linha.Valor|floatformat:2 }}
+                            </td>
+                            <td>
+                                <form action="{% url 'criar_regra_rapida' %}" method="POST" class="d-flex">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="palavra_chave" value="{{ linha.Remetente_Destinatario }}">
+                                    <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+                                    <input type="text" name="categoria" class="form-control form-control-sm me-2" placeholder="Categoria individual" required>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary btn-salvar-individual">Salvar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <form action="{% url 'criar_regras_em_lote' %}" method="POST" id="form-lote">
+                {% csrf_token %}
+                <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
+                
+                <div id="hidden-inputs-lote"></div>
+
+                <div class="card-footer d-flex justify-content-end align-items-center mt-3" id="area-salvar-em-lote">
+
+                    <strong class="me-3">Para os itens marcados:</strong>
+                    <div class="input-group" style="width: 350px;">
+                        <input type="text" name="categoria_em_lote" class="form-control" placeholder="Digite a categoria" required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check2-all"></i> Aplicar a Todos
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+        {% else %}
+            <p class="text-center text-muted mt-4">Parabéns! Todas as suas transações foram categorizadas.</p>
+        {% endif %}
     </div>
-    {% endif %}
+</div>
+
+<script>
+    // Gráfico 1: Despesas (VERMELHO)
+    const ctxDespesas = document.getElementById('graficoDespesas');
+    if (ctxDespesas && {{ dados_grafico|length }} > 0) {
+        new Chart(ctxDespesas, {
+            type: 'bar',
+            data: {
+                labels: {{ labels_grafico|safe }},
+                datasets: [{
+                    label: 'Despesas por Categoria (R$)',
+                    data: {{ dados_grafico|safe }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.6)', // Vermelho
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } } // Opcional: esconde a legenda se achar que polui
+            }
+        });
+    }
+
+    // Gráfico 2: Receitas (VERDE)
+    const ctxReceitas = document.getElementById('graficoReceitas');
+    if (ctxReceitas && {{ dados_grafico_receitas|length }} > 0) {
+        new Chart(ctxReceitas, {
+            type: 'bar',
+            data: {
+                labels: {{ labels_grafico_receitas|safe }},
+                datasets: [{
+                    label: 'Receitas por Categoria (R$)',
+                    data: {{ dados_grafico_receitas|safe }},
+                    backgroundColor: 'rgba(25, 135, 84, 0.6)', // Verde
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } } // Opcional
+            }
+        });
+    }
+</script>
+
+<script>
+    // Seleciona todos os checkboxes, incluindo o "selecionar-todos"
+    const allCheckboxes = document.querySelectorAll('input[type="checkbox"]');
+
+    // Função que atualiza o destaque de UMA linha
+    function atualizarDestaque(checkbox) {
+        // Encontra a linha <tr> pai do checkbox
+        const linha = checkbox.closest('tr');
+        // Só continua se for uma linha de transação (que tem a classe 'linha-transacao')
+        if (linha && linha.classList.contains('linha-transacao')) {
+            if (checkbox.checked) {
+                linha.classList.add('linha-selecionada');
+            } else {
+                linha.classList.remove('linha-selecionada');
+            }
+        }
+    }
+
+    // Lógica para o "Selecionar Todos"
+    const selecionarTodos = document.getElementById('selecionar-todos');
+    selecionarTodos.addEventListener('change', function() {
+        const estaMarcado = this.checked;
+        // Marca/desmarca todos os outros checkboxes E atualiza o destaque de cada um
+        document.querySelectorAll('.checkbox-transacao').forEach(cb => {
+            cb.checked = estaMarcado;
+            atualizarDestaque(cb);
+        });
+    });
+
+    // Lógica para os checkboxes individuais
+    document.querySelectorAll('.checkbox-transacao').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            atualizarDestaque(this);
+        });
+    });
+
+    // --- LÓGICA DO FORMULÁRIO EM LOTE (permanece igual) ---
+    const formLote = document.getElementById('form-lote');
+    if (formLote) {
+        formLote.addEventListener('submit', function(event) {
+            const checkboxesMarcados = document.querySelectorAll('.checkbox-transacao:checked');
+            if (checkboxesMarcados.length === 0) {
+                alert('Por favor, selecione pelo menos uma transação para categorizar.');
+                event.preventDefault();
+                return;
+            }
+            const containerInputs = document.getElementById('hidden-inputs-lote');
+            containerInputs.innerHTML = '';
+            checkboxesMarcados.forEach(function(checkbox) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'palavras_chave_selecionadas';
+                input.value = checkbox.value;
+                containerInputs.appendChild(input);
+            });
+        });
+    }
+
+
+            const areaSalvarEmLote = document.getElementById('area-salvar-em-lote');
+        const botoesSalvarIndividual = document.querySelectorAll('.btn-salvar-individual');
+
+        botoesSalvarIndividual.forEach(button => {
+            button.addEventListener('click', function(event) {
+                // Conta quantos checkboxes estão marcados
+                const checkboxesMarcados = document.querySelectorAll('.checkbox-transacao:checked').length;
+
+                // Se mais de um estiver marcado, o usuário provavelmente quer salvar em lote
+                if (checkboxesMarcados > 1) {
+                    // 1. Impede que o formulário individual seja enviado
+                    event.preventDefault();
+
+                    // 2. Rola a tela suavemente até a área correta
+                    areaSalvarEmLote.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // 3. (Opcional) Adiciona o efeito de flash
+                    areaSalvarEmLote.classList.add('flash-on-scroll');
+
+                    // Remove a classe do efeito após a animação terminar
+                    setTimeout(() => {
+                        areaSalvarEmLote.classList.remove('flash-on-scroll');
+                    }, 1200); // 1200ms = 1.2s (duração da animação)
+                }
+            });
+        });
+
+    ;
+</script>
 {% endblock %}
