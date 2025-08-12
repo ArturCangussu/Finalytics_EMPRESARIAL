@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import zipfile
 import re
 import io
-from django.http import HttpResponse
+
 
 def sanitize_excel_file(uploaded_file):
     """
@@ -230,43 +230,53 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
 
 def _processar_relatorio_seu_condominio_csv(arquivo_csv):
     """
-    Lê o relatório CSV do sistema 'Seu Condomínio' (versão final).
-    Esta versão está adaptada EXATAMENTE para a estrutura do arquivo CSV fornecido.
+    Lê o relatório CSV do sistema 'Seu Condomínio' de forma robusta.
+    Decodifica o arquivo de bytes para texto antes de passar para o leitor.
     """
-    print("--- INICIANDO PROCESSAMENTO CSV (VERSÃO CORRETA) ---")
+    print("--- INICIANDO PROCESSAMENTO CSV (COM DECODIFICADOR DE TEXTO) ---")
     try:
-        arquivo_csv.seek(0)
-        
-        # Lê o CSV da forma padrão, que é a correta para este arquivo.
+        # CORREÇÃO: "Traduz" o arquivo de dados brutos (bytes) para um arquivo de texto
+        # que a engine 'python' do pandas consegue ler.
+        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='latin-1')
+
         df = pd.read_csv(
-            arquivo_csv,
-            encoding='latin-1',
+            arquivo_csv_texto,  # Usa o arquivo "traduzido"
             sep=',',
             decimal=',',
             thousands='.',
-            quotechar='"'
+            quotechar='"',
+            engine='python'
         )
+        
         print("DEBUG: CSV lido. Colunas originais:", df.columns.tolist())
 
-        # Renomeia as colunas que realmente existem no CSV para o nosso padrão.
+        # Renomeia as colunas que existem no CSV para o nosso padrão.
         df.rename(columns={
             'Data Pagamento': 'Data',
             'Total Pago': 'Valor',
+            'Descrição': 'Descricao',
+            'Pagador/Fornecedor': 'Fornecedor'
         }, inplace=True)
 
+        # Filtra apenas as colunas que realmente vamos usar
+        colunas_reais = [col for col in ['Data', 'Tipo', 'Grupo', 'Subgrupo', 'Descricao', 'Fornecedor', 'Valor'] if col in df.columns]
+        df = df[colunas_reais]
+
         # Remove linhas que não são transações (sem data de pagamento)
-        df.dropna(subset=['Data', 'Tipo'], inplace=True)
+        df.dropna(subset=['Data'], inplace=True)
+        df = df[~df['Data'].str.contains("Subtotal", na=False)].copy()
 
         # Cria uma descrição mais completa para facilitar a identificação
-        df['Descricao'] = df['Grupo'].fillna('') + ' - ' + df['Subgrupo'].fillna('') + ' - ' + df['Descrição'].fillna('')
+        df['Descricao'] = df['Grupo'] + ' - ' + df['Subgrupo'] + ' - ' + df['Descricao']
         
-        # Adiciona a coluna 'Fornecedor' vazia, pois ela não existe neste CSV
-        df['Fornecedor'] = ''
+        # Se a coluna Fornecedor não existir no CSV, cria uma vazia
+        if 'Fornecedor' not in df.columns:
+            df['Fornecedor'] = ''
 
-        # Seleciona e ordena as colunas para o DataFrame final padronizado
+        # Seleciona as colunas finais para o DataFrame padronizado
         df_final = df[['Data', 'Valor', 'Tipo', 'Descricao', 'Fornecedor']].copy()
 
-        # Garante os tipos de dados corretos
+        # Garante que os tipos de dados estão corretos
         df_final['Data'] = pd.to_datetime(df_final['Data'], dayfirst=True, errors='coerce')
         df_final['Valor'] = pd.to_numeric(df_final['Valor'], errors='coerce').fillna(0)
         
@@ -320,40 +330,3 @@ def conciliar_dataframes(df_banco, df_relatorio):
 
     print("--- CONCILIAÇÃO FINALIZADA ---")
     return conciliadas, apenas_banco, apenas_relatorio
-
-
-
-def debug_csv_view(request):
-    if request.method == 'POST' and request.FILES.get('arquivo_csv'):
-        arquivo_csv = request.FILES['arquivo_csv']
-        
-        diagnostico = ["--- ANÁLISE BRUTA DO ARQUIVO CSV ---"]
-        
-        try:
-            arquivo_csv.seek(0)
-            # Lê as primeiras 15 linhas do arquivo
-            linhas = arquivo_csv.readlines(15)
-            
-            for i, linha_bytes in enumerate(linhas):
-                # Tenta decodificar a linha e conta as vírgulas
-                try:
-                    linha_texto = linha_bytes.decode('latin-1').strip()
-                    contagem_virgulas = linha_texto.count(',')
-                    diagnostico.append(f"Linha {i+1} ({contagem_virgulas} vírgulas): {linha_texto}")
-                except Exception as e:
-                    diagnostico.append(f"Linha {i+1}: Erro ao decodificar - {e}")
-
-            return HttpResponse("<pre>" + "\n".join(diagnostico) + "</pre>")
-
-        except Exception as e:
-            return HttpResponse(f"Ocorreu um erro geral ao tentar ler o arquivo: {e}")
-
-    # Formulário de upload para a página de debug
-    return HttpResponse("""
-        <h1>Ferramenta de Diagnóstico de CSV</h1>
-        <p>Envie o arquivo .csv do "Seu Condomínio" que está causando o erro.</p>
-        <form method="post" enctype="multipart/form-data">
-            <input type="file" name="arquivo_csv" required>
-            <button type="submit">Analisar Arquivo</button>
-        </form>
-    """)
