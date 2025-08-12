@@ -132,3 +132,27 @@ body {
     width: 0.5%; 
     padding-right: 0.1rem !important; 
 }
+
+.linha-selecionada {
+    background-color: rgba(0, 84, 102, 0.4) !important;
+    transition: background-color 0.3s ease;
+}
+
+
+
+@keyframes flash-effect {
+    0% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); /* Verde sucesso, semi-transparente */
+    }
+    70% {
+        box-shadow: 0 0 10px 20px rgba(25, 135, 84, 0); /* Aumenta e desaparece */
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+    }
+}
+
+.flash-on-scroll {
+    animation: flash-effect 2s ease-out;
+    border-radius: 5px; /* Garante que o shadow fique contido */
+}

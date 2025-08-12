@@ -139,7 +139,7 @@
                     </thead>
                     <tbody>
                         {% for index, linha in nao_categorizadas.iterrows %}
-                        <tr>
+                        <tr class="linha-transacao">
                             <td>
                                 <input class="form-check-input checkbox-transacao" type="checkbox" value="{{ linha.Remetente_Destinatario }}">
                             </td>
@@ -159,7 +159,7 @@
                                     <input type="hidden" name="palavra_chave" value="{{ linha.Remetente_Destinatario }}">
                                     <input type="hidden" name="extrato_id" value="{{ extrato.id }}">
                                     <input type="text" name="categoria" class="form-control form-control-sm me-2" placeholder="Categoria individual" required>
-                                    <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary btn-salvar-individual">Salvar</button>
                                 </form>
                             </td>
                         </tr>
@@ -174,10 +174,11 @@
                 
                 <div id="hidden-inputs-lote"></div>
 
-                <div class="card-footer d-flex justify-content-end align-items-center mt-3">
+                <div class="card-footer d-flex justify-content-end align-items-center mt-3" id="area-salvar-em-lote">
+
                     <strong class="me-3">Para os itens marcados:</strong>
                     <div class="input-group" style="width: 350px;">
-                        <input type="text" name="categoria_em_lote" class="form-control" placeholder="Digite a categoria para todos" required>
+                        <input type="text" name="categoria_em_lote" class="form-control" placeholder="Digite a categoria" required>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check2-all"></i> Aplicar a Todos
                         </button>
@@ -238,37 +239,53 @@
 </script>
 
 <script>
-    // Script para o checkbox "Selecionar Todos" (continua o mesmo)
-    const selecionarTodos = document.getElementById('selecionar-todos');
-    if (selecionarTodos) {
-        selecionarTodos.addEventListener('click', function(event) {
-            let checkboxes = document.querySelectorAll('.checkbox-transacao');
-            for (let checkbox of checkboxes) {
-                checkbox.checked = event.target.checked;
+    // Seleciona todos os checkboxes, incluindo o "selecionar-todos"
+    const allCheckboxes = document.querySelectorAll('input[type="checkbox"]');
+
+    // Função que atualiza o destaque de UMA linha
+    function atualizarDestaque(checkbox) {
+        // Encontra a linha <tr> pai do checkbox
+        const linha = checkbox.closest('tr');
+        // Só continua se for uma linha de transação (que tem a classe 'linha-transacao')
+        if (linha && linha.classList.contains('linha-transacao')) {
+            if (checkbox.checked) {
+                linha.classList.add('linha-selecionada');
+            } else {
+                linha.classList.remove('linha-selecionada');
             }
-        });
+        }
     }
 
-    // ================================================================
-    // =========== NOVO SCRIPT PARA CONECTAR OS CHECKBOXES ============
-    // ================================================================
+    // Lógica para o "Selecionar Todos"
+    const selecionarTodos = document.getElementById('selecionar-todos');
+    selecionarTodos.addEventListener('change', function() {
+        const estaMarcado = this.checked;
+        // Marca/desmarca todos os outros checkboxes E atualiza o destaque de cada um
+        document.querySelectorAll('.checkbox-transacao').forEach(cb => {
+            cb.checked = estaMarcado;
+            atualizarDestaque(cb);
+        });
+    });
+
+    // Lógica para os checkboxes individuais
+    document.querySelectorAll('.checkbox-transacao').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            atualizarDestaque(this);
+        });
+    });
+
+    // --- LÓGICA DO FORMULÁRIO EM LOTE (permanece igual) ---
     const formLote = document.getElementById('form-lote');
     if (formLote) {
         formLote.addEventListener('submit', function(event) {
-            // Pega todos os checkboxes que estão marcados
             const checkboxesMarcados = document.querySelectorAll('.checkbox-transacao:checked');
-
-            // Se nenhum estiver marcado, avisa o usuário e impede o envio
             if (checkboxesMarcados.length === 0) {
                 alert('Por favor, selecione pelo menos uma transação para categorizar.');
-                event.preventDefault(); // Impede o envio do formulário
+                event.preventDefault();
                 return;
             }
-            
             const containerInputs = document.getElementById('hidden-inputs-lote');
-            containerInputs.innerHTML = ''; // Limpa inputs de envios anteriores
-
-            // Para cada checkbox marcado, cria um input invisível dentro do formulário de lote
+            containerInputs.innerHTML = '';
             checkboxesMarcados.forEach(function(checkbox) {
                 const input = document.createElement('input');
                 input.type = 'hidden';
@@ -278,5 +295,35 @@
             });
         });
     }
+
+
+            const areaSalvarEmLote = document.getElementById('area-salvar-em-lote');
+        const botoesSalvarIndividual = document.querySelectorAll('.btn-salvar-individual');
+
+        botoesSalvarIndividual.forEach(button => {
+            button.addEventListener('click', function(event) {
+                // Conta quantos checkboxes estão marcados
+                const checkboxesMarcados = document.querySelectorAll('.checkbox-transacao:checked').length;
+
+                // Se mais de um estiver marcado, o usuário provavelmente quer salvar em lote
+                if (checkboxesMarcados > 1) {
+                    // 1. Impede que o formulário individual seja enviado
+                    event.preventDefault();
+
+                    // 2. Rola a tela suavemente até a área correta
+                    areaSalvarEmLote.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // 3. (Opcional) Adiciona o efeito de flash
+                    areaSalvarEmLote.classList.add('flash-on-scroll');
+
+                    // Remove a classe do efeito após a animação terminar
+                    setTimeout(() => {
+                        areaSalvarEmLote.classList.remove('flash-on-scroll');
+                    }, 1200); // 1200ms = 1.2s (duração da animação)
+                }
+            });
+        });
+
+    ;
 </script>
 {% endblock %}
