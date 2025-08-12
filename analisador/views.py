@@ -7,6 +7,13 @@ from django.urls import reverse
 from django.contrib import messages # Importa o sistema de mensagens do Django
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
+from .motor_analise import processar_extrato
+from .motor_analise import conciliar_dataframes
+from .motor_analise import sanitize_excel_file
+from .motor_analise import _processar_formato_sicoob_html
+from .motor_analise import _processar_formato_caixa
+from .motor_analise import _processar_formato_sicoob
+from .motor_analise import _processar_relatorio_seu_condominio_csv
 
 @login_required
 def pagina_inicial(request):
@@ -14,29 +21,44 @@ def pagina_inicial(request):
 
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
+        arquivo_seu_condominio = request.FILES.get('arquivo_seu_condominio')
         mes_referencia = request.POST.get('mes_referencia')
 
-        if not arquivo_extrato or not mes_referencia:
-            messages.error(request, 'Por favor, preencha todos os campos.')
+        if not all([arquivo_extrato, arquivo_seu_condominio, mes_referencia]):
+            messages.error(request, 'Por favor, envie os dois arquivos e preencha o mês de referência.')
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
-        # --- VALIDAÇÃO DO TIPO DE ARQUIVO ---
-        # Verifica se o nome do arquivo termina com .xlsx
-        if not (arquivo_extrato.name.lower().endswith('.xlsx') or arquivo_extrato.name.lower().endswith('.html')):
-            messages.error(request, 'Erro: O arquivo do extrato deve ser no formato .xlsx.')
-            return render(request, 'analisador/pagina_inicial.html', contexto)
-        # --- FIM DA VALIDAÇÃO ---
+        try:
+            # Lendo o Extrato do Banco
+            if arquivo_extrato.name.lower().endswith('.html'):
+                df_banco = _processar_formato_sicoob_html(arquivo_extrato)
+            else:
+                df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
+                if 'Data Lançamento' in df_com_skip.columns:
+                    df_banco = _processar_formato_caixa(df_com_skip)
+                else:
+                    df_banco = _processar_formato_sicoob(df_com_skip)
+            
+            # Lendo o Relatório do "Seu Condomínio"
+            # CORREÇÃO 2: Altere o nome da função sendo chamada aqui
+            df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
 
-        novo_extrato = Extrato.objects.create(
-            usuario=request.user,
-            mes_referencia=mes_referencia
-        )
-        processar_extrato(arquivo_extrato, request.user, novo_extrato)
+            # Rodando o motor de conciliação
+            conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
+
+            # Salvando os resultados na sessão e redirecionando
+            request.session['conciliadas'] = conciliadas.to_dict('records')
+            request.session['apenas_banco'] = apenas_banco.to_dict('records')
+            request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
+
+            return redirect('pagina_conciliacao')
+
+        except (ValueError, KeyError) as e:
+            messages.error(request, f"Erro ao processar os arquivos: {e}")
         
-        return redirect('pagina_relatorio', extrato_id=novo_extrato.id)
+        return render(request, 'analisador/pagina_inicial.html', contexto)
     
     return render(request, 'analisador/pagina_inicial.html', contexto)
-
 
 @login_required
 def gerenciar_regras(request):
@@ -389,3 +411,7 @@ def criar_regras_em_lote(request):
     # Se algo der errado, ou se não for POST, volta para a home
     messages.error(request, 'Ocorreu um erro ao processar a solicitação.')
     return redirect('home')
+
+
+
+
