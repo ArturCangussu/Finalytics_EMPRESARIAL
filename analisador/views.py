@@ -21,70 +21,38 @@ def pagina_inicial(request):
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
         arquivo_seu_condominio = request.FILES.get('arquivo_seu_condominio')
+        mes_referencia = request.POST.get('mes_referencia') # Mantido para consistência
 
         if not arquivo_extrato or not arquivo_seu_condominio:
             messages.error(request, 'Por favor, envie os dois arquivos.')
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
-            # 1. Processa o extrato bancário (lógica original mantida)
+            # Passo 1: Processa o extrato bancário
             print("Processando extrato do banco...")
             df_banco = _processar_formato_sicoob_html(arquivo_extrato)
             
-            # 2. Processa o relatório "Seu Condomínio" com lógica corrigida
+            # Passo 2: Processa o relatório "Seu Condomínio" com o leitor CSV correto
             print("Processando relatório 'Seu Condomínio'...")
-            nome_arquivo_sc = arquivo_seu_condominio.name.lower()
-            df_seu_condominio = None # Inicializa a variável
-
-            if nome_arquivo_sc.endswith('.csv'):
-                # Se for um CSV, processa diretamente com a função correta
-                print("Arquivo .csv detectado. Usando o processador de CSV.")
-                df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
+            df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
             
-            elif nome_arquivo_sc.endswith('.xlsx'):
-                # Se for um XLSX, primeiro sanitiza o arquivo
-                print("Arquivo .xlsx detectado. Sanitizando o arquivo...")
-                arquivo_corrigido = sanitize_excel_file(arquivo_seu_condominio)
-                
-                # ATENÇÃO: A função _processar_relatorio_seu_condominio_csv não foi feita para ler
-                # arquivos Excel. Você precisaria de uma função específica que usa pandas.read_excel()
-                # para ler o 'arquivo_corrigido'. A lógica original estava incorreta aqui.
-                # Se você realmente precisar ler .xlsx, uma nova função é necessária no motor_analise.py.
-                # Por agora, vamos sinalizar um erro claro se um .xlsx for enviado.
-                messages.error(request, "O processamento de arquivos .xlsx para o 'Seu Condomínio' ainda não é suportado por esta rotina. Por favor, use o formato .csv.")
-                return render(request, 'analisador/pagina_inicial.html', contexto)
-
-            else:
-                raise ValueError("Formato de arquivo do 'Seu Condomínio' não suportado. Use .csv ou .xlsx")
-
-            # 3. Roda o motor de conciliação
-            print("Conciliando os dataframes...")
+            # Passo 3: Roda o motor de conciliação
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
-            # 4. Converte colunas de data para string antes de salvar na sessão
+            # Passo 4: Converte as colunas de data para string antes de salvar na sessão
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
-                for col in ['Data_banco', 'Data_relatorio', 'Data']:
-                    if col in df_resultado.columns:
-                        # Garante que a coluna de data exista antes de tentar formatar
-                        df_resultado[col] = pd.to_datetime(df_resultado[col]).dt.strftime('%Y-%m-%d')
+                if 'Data' in df_resultado.columns:
+                    df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
 
-            # 5. Salva os resultados na sessão
+            # Passo 5: Salva os resultados na sessão
             request.session['conciliadas'] = conciliadas.to_dict('records')
             request.session['apenas_banco'] = apenas_banco.to_dict('records')
             request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
 
-            # Na sua implementação futura, você deve criar uma view 'pagina_conciliacao'
-            # e a URL correspondente para mostrar os resultados.
-            # return redirect('pagina_conciliacao')
-            
-            # Por enquanto, vamos redirecionar para a home com uma mensagem de sucesso.
-            messages.success(request, "Arquivos processados e conciliados com sucesso! (Página de resultado a ser implementada)")
-            return redirect('home')
-
+            # Passo 6: Redireciona para a página de resultados
+            return redirect('pagina_conciliacao')
 
         except Exception as e:
-            import traceback
-            traceback.print_exc() # Imprime o erro detalhado no console do servidor
             messages.error(request, f"Erro ao processar os arquivos: {e}")
             return render(request, 'analisador/pagina_inicial.html', contexto)
     
@@ -443,5 +411,27 @@ def criar_regras_em_lote(request):
     return redirect('home')
 
 
+@login_required
+def pagina_conciliacao(request):
+    """Exibe os resultados da conciliação que foram salvos na sessão."""
+    conciliadas = request.session.get('conciliadas', [])
+    apenas_banco = request.session.get('apenas_banco', [])
+    apenas_relatorio = request.session.get('apenas_relatorio', [])
 
+    # Converte as datas de string de volta para objetos de data para o template poder formatar
+    for item in apenas_banco:
+        item['Data'] = pd.to_datetime(item['Data'])
+    for item in apenas_relatorio:
+        item['Data'] = pd.to_datetime(item['Data'])
+    for item in conciliadas:
+        item['Data'] = pd.to_datetime(item['Data'])
+
+    contexto = {
+        'conciliadas': conciliadas,
+        'apenas_banco': apenas_banco,
+        'apenas_relatorio': apenas_relatorio,
+        'active_page': 'home'
+    }
+    # A MUDANÇA ESTÁ AQUI:
+    return render(request, 'analisador/relatorio.html', contexto) 
 

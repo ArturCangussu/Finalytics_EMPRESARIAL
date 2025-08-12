@@ -16,4 +16,5 @@ urlpatterns = [
     path('transacao/editar/<int:transacao_id>/', views.editar_transacao, name='editar_transacao'),
     path('cadastro/', views.cadastro_usuario, name='cadastro'),
     path('regras/criar-em-lote/', views.criar_regras_em_lote, name='criar_regras_em_lote'),
+    path('conciliacao/', views.pagina_conciliacao, name='pagina_conciliacao'),
 ]
