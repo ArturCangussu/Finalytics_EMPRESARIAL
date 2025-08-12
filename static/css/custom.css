@@ -154,5 +154,5 @@ body {
 
 .flash-on-scroll {
     animation: flash-effect 2s ease-out;
-    border-radius: 5px; /* Garante que o shadow fique contido */
+    border-radius: 5px; /*  que o shadow fique contido */
 }
