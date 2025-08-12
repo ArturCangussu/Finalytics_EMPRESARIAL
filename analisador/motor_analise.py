@@ -9,45 +9,23 @@ import re
 import io
 import csv
 
+# --- FUNÇÃO PARA "CONSERTAR" O EXCEL MALFORMADO ---
 def sanitize_excel_file(uploaded_file):
-    """
-    Repara um arquivo .xlsx malformado em memória, removendo atributos 'r' numéricos inválidos
-    de células e linhas, que causam erros na biblioteca openpyxl.
-    """
     print("--- INICIANDO SANITIZAÇÃO DO ARQUIVO EXCEL ---")
-    
-    # Usa um buffer de bytes para manipular o arquivo em memória
+    uploaded_file.seek(0)
     sanitized_file_in_memory = io.BytesIO()
-
-    # Cria um novo arquivo ZIP (o .xlsx sanitizado) em memória
     with zipfile.ZipFile(sanitized_file_in_memory, 'w', zipfile.ZIP_DEFLATED) as z_out:
-        # Abre o arquivo original enviado pelo usuário como um ZIP
         with zipfile.ZipFile(uploaded_file, 'r') as z_in:
-            # Itera sobre todos os arquivos internos do .xlsx original
             for item in z_in.infolist():
                 content = z_in.read(item.filename)
-                
-                # Se for um arquivo de planilha (onde o erro ocorre), nós o tratamos
                 if item.filename.startswith('xl/worksheets/sheet'):
-                    print(f"DEBUG: Sanitizando a planilha: {item.filename}")
                     xml_content_str = content.decode('utf-8')
-                    
-                    # Regex para encontrar e REMOVER os atributos r="<somente_numeros>"
-                    # Isso corrige o problema que você identificou!
                     sanitized_xml_content = re.sub(r' r="\d+"', '', xml_content_str)
-                    
                     if xml_content_str != sanitized_xml_content:
-                        print("DEBUG: Sanitização aplicada. Atributos 'r' inválidos foram removidos.")
-                    else:
-                        print("DEBUG: Nenhum atributo 'r' inválido encontrado para remover.")
-
-                    # Escreve o conteúdo XML modificado no novo arquivo ZIP
+                        print("DEBUG: Sanitização aplicada.")
                     z_out.writestr(item, sanitized_xml_content.encode('utf-8'))
                 else:
-                    # Para todos os outros arquivos (estilos, etc.), apenas copiamos
                     z_out.writestr(item, content)
-
-    # "Rebobina" o arquivo em memória para que o Pandas possa lê-lo do início
     sanitized_file_in_memory.seek(0)
     print("--- SANITIZAÇÃO CONCLUÍDA ---")
     return sanitized_file_in_memory
@@ -228,115 +206,94 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
 
 
 
+# --- FUNÇÃO PARA LER O RELATÓRIO "SEU CONDOMÍNIO" (TRATANDO COMO EXCEL) ---
 def _processar_relatorio_seu_condominio_csv(arquivo_csv):
     """
-    Lê o relatório CSV (versão manual). Esta abordagem lê o arquivo
-    linha por linha para lidar com o cabeçalho malformado.
+    Lê o relatório CSV malformado do "Seu Condomínio", processando linha por linha
+    para extrair apenas as transações válidas.
     """
-    print("--- INICIANDO PROCESSAMENTO CSV (MÉTODO MANUAL E FINAL) ---")
+    print("--- INICIANDO PROCESSAMENTO CSV (MÉTODO MANUAL FINAL) ---")
     try:
         arquivo_csv.seek(0)
         arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='latin-1')
-
-        # Usa o leitor CSV nativo do Python, que é mais robusto para casos estranhos
+        
         reader = csv.reader(arquivo_csv_texto, delimiter=',', quotechar='"')
 
-        # Pula as 4 primeiras linhas de título do relatório
+        dados_limpos = []
+        current_tipo = ''
+        current_grupo = ''
+        current_subgrupo = ''
+
+        # Pula as 4 primeiras linhas de título que não são dados
         for _ in range(4):
             next(reader)
-
-        # Lê a 5ª linha, que é o cabeçalho problemático
-        header_bruta = next(reader)
-        print(f"DEBUG: Cabeçalho bruto lido: {header_bruta}")
-
-        # Limpa o cabeçalho. A sua saída de debug indicou que ele pode vir
-        # como uma única string em uma lista de um elemento.
-        if len(header_bruta) == 1:
-            header_limpo = header_bruta[0].split(',')
-        else:
-            header_limpo = [h.strip() for h in header_bruta]
         
-        # Remove aspas dos nomes das colunas
-        header_limpo = [h.replace('"', '') for h in header_limpo]
+        # Lê a 5ª linha que deveria ser o cabeçalho, mas ignoramos para tratar manualmente
+        header_falso = next(reader)
+        print(f"DEBUG: Linha de cabeçalho ignorada: {header_falso}")
 
-        print(f"DEBUG: Cabeçalho limpo: {header_limpo}")
+
+        for i, row in enumerate(reader):
+            # Linhas de transação válidas no CSV têm 5 colunas
+            if len(row) == 5:
+                descricao_item, observacoes, fornecedor, data, valor = row
+                
+                if not data: continue
+
+                valor_limpo = pd.to_numeric(valor, errors='coerce')
+                descricao_final = f"{current_grupo} - {current_subgrupo} - {descricao_item}".strip(' - ')
+
+                dados_limpos.append({
+                    'Tipo': current_tipo,
+                    'Data': data,
+                    'Descricao': descricao_final,
+                    'Fornecedor': fornecedor,
+                    'Valor': valor_limpo
+                })
+            
+            # Linhas de título/categoria no CSV têm 6 colunas
+            elif len(row) == 6:
+                descricao_grupo = row[0]
+                if "RECEITAS" in descricao_grupo.upper():
+                    current_tipo = 'Receita'
+                    current_grupo = ''
+                elif "DESPESAS" in descricao_grupo.upper():
+                    current_tipo = 'Despesa'
+                    current_grupo = ''
+                else:
+                    if row[2] == '':
+                        current_grupo = descricao_grupo
+                        current_subgrupo = ''
+                    else:
+                        current_subgrupo = descricao_grupo
         
-        # Lê o resto das linhas do arquivo
-        dados_brutos = [row for row in reader]
+        if not dados_limpos:
+            raise ValueError("Nenhuma linha de transação válida foi encontrada no arquivo CSV.")
 
-        # Cria o DataFrame a partir dos dados brutos e do cabeçalho limpo
-        df = pd.DataFrame(dados_brutos, columns=header_limpo)
-
-        # A partir daqui, o processamento é o mesmo que já validamos
-        print("DEBUG: DataFrame criado. Colunas:", df.columns.tolist())
-
-        # Renomeia as colunas para o nosso padrão
-        df.rename(columns={
-            'Data Pagamento': 'Data',
-            'Total Pago': 'Valor',
-            'Descrição': 'Descricao',
-            'Pagador/Fornecedor': 'Fornecedor'
-        }, inplace=True)
-        
-        # Remove linhas sem data ou tipo
-        df.dropna(subset=['Data', 'Tipo'], inplace=True, how='all')
-        df = df[~df['Data'].astype(str).str.contains("Subtotal", na=False)].copy()
-
-        # Cria descrição completa
-        df['Descricao'] = df['Grupo'].fillna('') + ' - ' + df['Subgrupo'].fillna('') + ' - ' + df['Descricao'].fillna('')
-        
-        if 'Fornecedor' not in df.columns:
-            df['Fornecedor'] = ''
-
-        df_final = df[['Data', 'Valor', 'Tipo', 'Descricao', 'Fornecedor']].copy()
-
+        df_final = pd.DataFrame(dados_limpos)
         df_final['Data'] = pd.to_datetime(df_final['Data'], dayfirst=True, errors='coerce')
-        df_final['Valor'] = pd.to_numeric(df_final['Valor'].str.replace('.', '', regex=False).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
-        
         df_final.dropna(subset=['Data'], inplace=True)
-
+        
         print(f"--- PROCESSAMENTO CSV CONCLUÍDO. {len(df_final)} transações encontradas. ---")
         return df_final
-
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         raise ValueError(f"Não foi possível processar o arquivo CSV do Seu Condomínio. Erro: {e}")
     
 
 
 def conciliar_dataframes(df_banco, df_relatorio):
-
+    """Compara os dois DataFrames e retorna as diferenças."""
     print("--- INICIANDO MOTOR DE CONCILIAÇÃO ---")
-    
-    # Padronizando colunas para a comparação.
-    banco_comp = df_banco[['Data', 'Valor', 'Topico', 'Descricao']].copy()
+    banco_comp = df_banco.copy()
     banco_comp.rename(columns={'Topico': 'Tipo'}, inplace=True)
-        
-    relatorio_comp = df_relatorio[['Data', 'Valor', 'Tipo', 'Descricao', 'Fornecedor']].copy()
-
-    # Arredonda valores para 2 casas decimais para evitar problemas de ponto flutuante
+    relatorio_comp = df_relatorio.copy()
     banco_comp['Valor'] = banco_comp['Valor'].round(2)
     relatorio_comp['Valor'] = relatorio_comp['Valor'].round(2)
-
-    # Adiciona um identificador único para cada linha para lidar com transações duplicadas no mesmo dia/valor
     banco_comp['id_unico'] = banco_comp.groupby(['Data', 'Valor', 'Tipo']).cumcount()
     relatorio_comp['id_unico'] = relatorio_comp.groupby(['Data', 'Valor', 'Tipo']).cumcount()
-
-        # Realiza o 'merge' dos dois DataFrames para encontrar as correspondências e diferenças
-    conciliacao_df = pd.merge(
-    banco_comp,
-    relatorio_comp,
-    on=['Data', 'Valor', 'Tipo', 'id_unico'],
-    how='outer',
-    suffixes=('_banco', '_relatorio'),
-    indicator=True
-    )
-
-        # Separa os resultados com base no indicador '_merge'
+    conciliacao_df = pd.merge(banco_comp, relatorio_comp, on=['Data', 'Valor', 'Tipo', 'id_unico'], how='outer', suffixes=('_banco', '_relatorio'), indicator=True)
     conciliadas = conciliacao_df[conciliacao_df['_merge'] == 'both']
     apenas_banco = conciliacao_df[conciliacao_df['_merge'] == 'left_only']
     apenas_relatorio = conciliacao_df[conciliacao_df['_merge'] == 'right_only']
-
     print("--- CONCILIAÇÃO FINALIZADA ---")
     return conciliadas, apenas_banco, apenas_relatorio
