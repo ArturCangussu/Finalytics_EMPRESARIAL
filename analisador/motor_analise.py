@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import zipfile
 import re
 import io
-
+import csv
 
 def sanitize_excel_file(uploaded_file):
     """
@@ -230,64 +230,74 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
 
 def _processar_relatorio_seu_condominio_csv(arquivo_csv):
     """
-    Lê o relatório CSV do sistema 'Seu Condomínio' de forma robusta.
-    Decodifica o arquivo de bytes para texto antes de passar para o leitor.
+    Lê o relatório CSV (versão manual). Esta abordagem lê o arquivo
+    linha por linha para lidar com o cabeçalho malformado.
     """
-    print("--- INICIANDO PROCESSAMENTO CSV (COM DECODIFICADOR DE TEXTO) ---")
+    print("--- INICIANDO PROCESSAMENTO CSV (MÉTODO MANUAL E FINAL) ---")
     try:
-        # CORREÇÃO: "Traduz" o arquivo de dados brutos (bytes) para um arquivo de texto
-        # que a engine 'python' do pandas consegue ler.
+        arquivo_csv.seek(0)
         arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='latin-1')
 
-        df = pd.read_csv(
-            arquivo_csv_texto,  # Usa o arquivo "traduzido"
-            sep=',',
-            decimal=',',
-            thousands='.',
-            quotechar='"',
-            engine='python'
-        )
-        
-        print("DEBUG: CSV lido. Colunas originais:", df.columns.tolist())
+        # Usa o leitor CSV nativo do Python, que é mais robusto para casos estranhos
+        reader = csv.reader(arquivo_csv_texto, delimiter=',', quotechar='"')
 
-        # Renomeia as colunas que existem no CSV para o nosso padrão.
+        # Pula as 4 primeiras linhas de título do relatório
+        for _ in range(4):
+            next(reader)
+
+        # Lê a 5ª linha, que é o cabeçalho problemático
+        header_bruta = next(reader)
+        print(f"DEBUG: Cabeçalho bruto lido: {header_bruta}")
+
+        # Limpa o cabeçalho. A sua saída de debug indicou que ele pode vir
+        # como uma única string em uma lista de um elemento.
+        if len(header_bruta) == 1:
+            header_limpo = header_bruta[0].split(',')
+        else:
+            header_limpo = [h.strip() for h in header_bruta]
+        
+        # Remove aspas dos nomes das colunas
+        header_limpo = [h.replace('"', '') for h in header_limpo]
+
+        print(f"DEBUG: Cabeçalho limpo: {header_limpo}")
+        
+        # Lê o resto das linhas do arquivo
+        dados_brutos = [row for row in reader]
+
+        # Cria o DataFrame a partir dos dados brutos e do cabeçalho limpo
+        df = pd.DataFrame(dados_brutos, columns=header_limpo)
+
+        # A partir daqui, o processamento é o mesmo que já validamos
+        print("DEBUG: DataFrame criado. Colunas:", df.columns.tolist())
+
+        # Renomeia as colunas para o nosso padrão
         df.rename(columns={
             'Data Pagamento': 'Data',
             'Total Pago': 'Valor',
             'Descrição': 'Descricao',
             'Pagador/Fornecedor': 'Fornecedor'
         }, inplace=True)
-
-        # Filtra apenas as colunas que realmente vamos usar
-        colunas_reais = [col for col in ['Data', 'Tipo', 'Grupo', 'Subgrupo', 'Descricao', 'Fornecedor', 'Valor'] if col in df.columns]
-        df = df[colunas_reais]
-
-        # Remove linhas que não são transações (sem data de pagamento)
-        df.dropna(subset=['Data'], inplace=True)
-        df = df[~df['Data'].str.contains("Subtotal", na=False)].copy()
-
-        # Cria uma descrição mais completa para facilitar a identificação
-        df['Descricao'] = df['Grupo'] + ' - ' + df['Subgrupo'] + ' - ' + df['Descricao']
         
-        # Se a coluna Fornecedor não existir no CSV, cria uma vazia
+        # Remove linhas sem data ou tipo
+        df.dropna(subset=['Data', 'Tipo'], inplace=True, how='all')
+        df = df[~df['Data'].astype(str).str.contains("Subtotal", na=False)].copy()
+
+        # Cria descrição completa
+        df['Descricao'] = df['Grupo'].fillna('') + ' - ' + df['Subgrupo'].fillna('') + ' - ' + df['Descricao'].fillna('')
+        
         if 'Fornecedor' not in df.columns:
             df['Fornecedor'] = ''
 
-        # Seleciona as colunas finais para o DataFrame padronizado
         df_final = df[['Data', 'Valor', 'Tipo', 'Descricao', 'Fornecedor']].copy()
 
-        # Garante que os tipos de dados estão corretos
         df_final['Data'] = pd.to_datetime(df_final['Data'], dayfirst=True, errors='coerce')
-        df_final['Valor'] = pd.to_numeric(df_final['Valor'], errors='coerce').fillna(0)
+        df_final['Valor'] = pd.to_numeric(df_final['Valor'].str.replace('.', '', regex=False).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
         
-        # Remove quaisquer linhas que possam ter falhado na conversão de data
         df_final.dropna(subset=['Data'], inplace=True)
 
         print(f"--- PROCESSAMENTO CSV CONCLUÍDO. {len(df_final)} transações encontradas. ---")
         return df_final
 
-    except KeyError as e:
-        raise ValueError(f"A coluna esperada {e} não foi encontrada no arquivo CSV. Verifique se o relatório exportado está correto.")
     except Exception as e:
         import traceback
         traceback.print_exc()
