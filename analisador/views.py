@@ -14,6 +14,8 @@ from .motor_analise import _processar_formato_sicoob_html
 from .motor_analise import _processar_formato_caixa
 from .motor_analise import _processar_formato_sicoob
 from .motor_analise import _processar_relatorio_seu_condominio_csv
+from django.http import HttpResponse
+
 
 @login_required
 def pagina_inicial(request):
@@ -28,38 +30,32 @@ def pagina_inicial(request):
             messages.error(request, 'Por favor, envie os dois arquivos e preencha o mês de referência.')
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
-        try:
-            # Lendo o Extrato do Banco
-            if arquivo_extrato.name.lower().endswith('.html'):
-                df_banco = _processar_formato_sicoob_html(arquivo_extrato)
-            else:
-                df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
-                if 'Data Lançamento' in df_com_skip.columns:
-                    df_banco = _processar_formato_caixa(df_com_skip)
-                else:
-                    df_banco = _processar_formato_sicoob(df_com_skip)
-            
-            # Lendo o Relatório do "Seu Condomínio"
-            # CORREÇÃO 2: Altere o nome da função sendo chamada aqui
-            df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
-
-            # Rodando o motor de conciliação
-            conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
-
-            # Salvando os resultados na sessão e redirecionando
-            request.session['conciliadas'] = conciliadas.to_dict('records')
-            request.session['apenas_banco'] = apenas_banco.to_dict('records')
-            request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
-
-            return redirect('pagina_conciliacao')
-
-        except (ValueError, KeyError) as e:
-            messages.error(request, f"Erro ao processar os arquivos: {e}")
+        # O BLOCO TRY...EXCEPT FOI REMOVIDO TEMPORARIAMENTE PARA DEBUG
         
-        return render(request, 'analisador/pagina_inicial.html', contexto)
+        # Lendo o Extrato do Banco
+        if arquivo_extrato.name.lower().endswith('.html'):
+            df_banco = _processar_formato_sicoob_html(arquivo_extrato)
+        else:
+            df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
+            if 'Data Lançamento' in df_com_skip.columns:
+                df_banco = _processar_formato_caixa(df_com_skip)
+            else:
+                df_banco = _processar_formato_sicoob(df_com_skip)
+        
+        # Lendo o Relatório do "Seu Condomínio"
+        df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
+
+        # Rodando o motor de conciliação
+        conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
+
+        # Salvando os resultados na sessão e redirecionando
+        request.session['conciliadas'] = conciliadas.to_dict('records')
+        request.session['apenas_banco'] = apenas_banco.to_dict('records')
+        request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
+
+        return redirect('pagina_conciliacao')
     
     return render(request, 'analisador/pagina_inicial.html', contexto)
-
 @login_required
 def gerenciar_regras(request):
     extrato_id_origem = request.GET.get('from_report')
@@ -415,3 +411,42 @@ def criar_regras_em_lote(request):
 
 
 
+@login_required
+def pagina_conciliacao(request):
+    conciliadas = request.session.get('conciliadas', [])
+    apenas_banco = request.session.get('apenas_banco', [])
+    apenas_relatorio = request.session.get('apenas_relatorio', [])
+
+    contexto = {
+        'conciliadas': conciliadas,
+        'apenas_banco': apenas_banco,
+        'apenas_relatorio': apenas_relatorio,
+        'active_page': 'home' # Mantém o menu 'Início' ativo
+    }
+    return render(request, 'analisador/conciliacao_relatorio.html', contexto)
+
+
+def debug_csv_view(request):
+    if request.method == 'POST' and request.FILES.get('arquivo_csv'):
+        arquivo_csv = request.FILES['arquivo_csv']
+        diagnostico = ["--- ANÁLISE BRUTA DO ARQUIVO CSV ---"]
+        try:
+            arquivo_csv.seek(0)
+            linhas = arquivo_csv.readlines(20) # Aumentei para 20 linhas para termos mais contexto
+            
+            for i, linha_bytes in enumerate(linhas):
+                try:
+                    linha_texto = linha_bytes.decode('latin-1').strip()
+                    contagem_virgulas = linha_texto.count(',')
+                    diagnostico.append(f"Linha {i+1} ({contagem_virgulas} vírgulas): {linha_texto}")
+                except Exception as e:
+                    diagnostico.append(f"Linha {i+1}: Erro ao decodificar - {e}")
+
+            # Retorna o resultado do diagnóstico na tela
+            return HttpResponse("<pre>" + "\n".join(diagnostico) + "</pre>")
+
+        except Exception as e:
+            return HttpResponse(f"Ocorreu um erro geral ao tentar ler o arquivo: {e}")
+
+    # Quando a página é carregada (GET), renderiza o novo template com o formulário correto
+    return render(request, 'analisador/debug_csv.html')

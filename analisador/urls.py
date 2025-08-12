@@ -1,14 +1,25 @@
+# analisador/urls.py
+
 from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Páginas principais
     path('', views.pagina_inicial, name='home'),
-    path('regras/', views.gerenciar_regras, name='gerenciar_regras'),
-    path('historico/', views.historico_extratos, name='historico'),
-    path('comparar/', views.comparar_extratos, name='comparar'),
+    path('conciliacao/', views.pagina_conciliacao, name='pagina_conciliacao'), # ADICIONADO
+    path('debug-csv/', views.debug_csv_view, name='debug_csv'),           # ADICIONADO (Temporário)
+
+    # Páginas de análise de extrato único (antigas)
     path('relatorio/<int:extrato_id>/', views.pagina_relatorio, name='pagina_relatorio'),
     path('relatorio/<int:extrato_id>/reprocessar/', views.reprocessar_relatorio, name='reprocessar_relatorio'),
     path('relatorio/<int:extrato_id>/categoria/<str:nome_categoria>/', views.detalhe_categoria, name='detalhe_categoria'),
+
+    # Páginas de gerenciamento
+    path('regras/', views.gerenciar_regras, name='gerenciar_regras'),
+    path('historico/', views.historico_extratos, name='historico'),
+    path('comparar/', views.comparar_extratos, name='comparar'),
+
+    # Rotas de ação (CRUD)
     path('regras/criar-rapido/', views.criar_regra_rapida, name='criar_regra_rapida'),
     path('historico/apagar/<int:extrato_id>/', views.apagar_extrato, name='apagar_extrato'),
     path('regras/editar/<int:regra_id>/', views.editar_regra, name='editar_regra'),
