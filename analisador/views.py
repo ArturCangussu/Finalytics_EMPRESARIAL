@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required 
 from .motor_analise import processar_extrato
-from .models import Regra, Transacao, Extrato
+from .models import Regra, Transacao, Extrato, RelatorioConciliacao
 import pandas as pd
 from django.urls import reverse
 from django.contrib import messages # Importa o sistema de mensagens do Django
@@ -14,11 +14,13 @@ from .motor_analise import (
     _processar_relatorio_seu_condominio_csv,
     conciliar_dataframes
 )
+import numpy as np
 
 @login_required
 def pagina_inicial(request):
     contexto = {'active_page': 'home'}
     if request.method == 'POST':
+        # ... (código para pegar os arquivos e o mês) ...
         arquivo_extrato = request.FILES.get('arquivo_extrato')
         arquivo_seu_condominio = request.FILES.get('arquivo_seu_condominio')
         mes_referencia = request.POST.get('mes_referencia')
@@ -28,46 +30,33 @@ def pagina_inicial(request):
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
-            Extrato.objects.create(
-                usuario=request.user,
-                mes_referencia=f"Conciliação - {mes_referencia}"
-            )
-            
-            # --- LÓGICA DE DETECÇÃO DO EXTRATO BANCÁRIO CORRIGIDA ---
-            print("Processando extrato do banco...")
-            df_banco = None
-            if arquivo_extrato.name.lower().endswith('.html'):
-                df_banco_bruto = _processar_formato_sicoob_html(arquivo_extrato)
-                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
-            else: # Assume que é .xlsx
-                df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
-                df_banco_bruto = None
-                if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
-                    df_banco_bruto = _processar_formato_caixa(df_com_skip)
-                elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
-                    df_banco_bruto = _processar_formato_sicoob(df_com_skip)
-                
-                if df_banco_bruto is not None:
-                    df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
-                else:
-                    raise ValueError("Formato de extrato bancário Excel não reconhecido.")
-            
-            # --- FIM DA CORREÇÃO ---
-            
-            print("Processando relatório 'Seu Condomínio'...")
+            # 1. Processa os arquivos (lógica existente)
+            df_banco = _processar_formato_sicoob_html(arquivo_extrato)
             df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
             
+            # 2. Roda a conciliação (lógica existente)
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
+            conciliadas = conciliadas.replace({np.nan: None})
+            apenas_banco = apenas_banco.replace({np.nan: None})
+            apenas_relatorio = apenas_relatorio.replace({np.nan: None})
+
+            # 3. Converte as datas para string para salvar no banco
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
                 if 'Data' in df_resultado.columns:
                     df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
+            
+            # 4. SALVA O RESULTADO NO BANCO DE DADOS
+            novo_relatorio = RelatorioConciliacao.objects.create(
+                usuario=request.user,
+                mes_referencia=mes_referencia,
+                conciliadas=conciliadas.to_dict('records'),
+                apenas_banco=apenas_banco.to_dict('records'),
+                apenas_relatorio=apenas_relatorio.to_dict('records')
+            )
 
-            request.session['conciliadas'] = conciliadas.to_dict('records')
-            request.session['apenas_banco'] = apenas_banco.to_dict('records')
-            request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
-
-            return redirect('pagina_conciliacao')
+            # 5. Redireciona para a página de resultados, passando o ID do novo relatório
+            return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
             messages.error(request, f"Erro ao processar os arquivos: {e}")
@@ -135,9 +124,12 @@ def detalhe_categoria(request, extrato_id, nome_categoria):
 
 @login_required
 def historico_extratos(request):
-    extratos = Extrato.objects.filter(usuario=request.user).order_by('-data_upload')
+    extratos_antigos = Extrato.objects.filter(usuario=request.user)
+    relatorios_novos = RelatorioConciliacao.objects.filter(usuario=request.user)
+    
     contexto = {
-        'extratos': extratos,
+        'extratos': extratos_antigos,
+        'relatorios': relatorios_novos,
         'active_page': 'historico'
     }
     return render(request, 'analisador/historico.html', contexto)
@@ -427,26 +419,37 @@ def criar_regras_em_lote(request):
 
 
 @login_required
-def pagina_conciliacao(request):
-    """Exibe os resultados da conciliação que foram salvos na sessão."""
-    conciliadas = request.session.get('conciliadas', [])
-    apenas_banco = request.session.get('apenas_banco', [])
-    apenas_relatorio = request.session.get('apenas_relatorio', [])
-
-    # Converte as datas de string de volta para objetos de data para o template poder formatar
-    for item in apenas_banco:
-        item['Data'] = pd.to_datetime(item['Data'])
-    for item in apenas_relatorio:
-        item['Data'] = pd.to_datetime(item['Data'])
-    for item in conciliadas:
-        item['Data'] = pd.to_datetime(item['Data'])
-
+def ver_conciliacao(request, relatorio_id):
+    """Exibe um relatório de conciliação salvo no banco de dados."""
+    relatorio = RelatorioConciliacao.objects.get(id=relatorio_id, usuario=request.user)
+    
+    # Converte as datas de string de volta para objetos de data para o template
+    for item in relatorio.apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
+    for item in relatorio.apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
+    for item in relatorio.conciliadas: item['Data'] = pd.to_datetime(item['Data'])
+        
     contexto = {
-        'conciliadas': conciliadas,
-        'apenas_banco': apenas_banco,
-        'apenas_relatorio': apenas_relatorio,
+        'conciliadas': relatorio.conciliadas,
+        'apenas_banco': relatorio.apenas_banco,
+        'apenas_relatorio': relatorio.apenas_relatorio,
         'active_page': 'home'
     }
-    
-    return render(request, 'analisador/relatorio.html', contexto) 
+    return render(request, 'analisador/relatorio.html', contexto)
 
+
+
+
+@login_required
+def apagar_conciliacao(request, relatorio_id):
+    # Garante que apenas o método POST pode apagar, por segurança
+    if request.method == 'POST':
+        # Encontra o relatório, garantindo que ele pertence ao usuário logado
+        try:
+            relatorio = RelatorioConciliacao.objects.get(id=relatorio_id, usuario=request.user)
+            relatorio.delete()
+            messages.success(request, "Relatório de conciliação apagado com sucesso!")
+        except RelatorioConciliacao.DoesNotExist:
+            messages.error(request, "Relatório não encontrado ou você não tem permissão para apagá-lo.")
+    
+    # Redireciona de volta para a página de histórico
+    return redirect('historico')

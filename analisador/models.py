@@ -67,3 +67,17 @@ class Transacao(models.Model):
             
         
         return descricao_str
+    
+
+class RelatorioConciliacao(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    mes_referencia = models.CharField(max_length=100)
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    
+    # Usamos campos JSON para guardar as listas de resultados de forma flexível
+    conciliadas = models.JSONField(default=list)
+    apenas_banco = models.JSONField(default=list)
+    apenas_relatorio = models.JSONField(default=list)
+
+    def __str__(self):
+        return f"Conciliação de {self.mes_referencia} por {self.usuario.username}"
