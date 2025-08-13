@@ -460,25 +460,43 @@ def ver_conciliacao(request, relatorio_id):
     
     total_receitas_apuradas = 0
     total_despesas_apuradas = 0
+    total_tarifas_pix = 0
 
     if transacoes_apuradas:
         df_apurado = pd.DataFrame(transacoes_apuradas)
+        
+        # 1. Calcula totais de Receita e Despesa
         somas_por_tipo = df_apurado.groupby('Tipo')['Valor'].sum()
         total_receitas_apuradas = somas_por_tipo.get('Receita', 0)
         total_despesas_apuradas = somas_por_tipo.get('Despesa', 0)
-                                                    
+
+        # --- CORREÇÃO APLICADA AQUI ---
+        # 2. Calcula o total de tarifas usando o DataFrame
+        
+        # Filtra apenas as despesas
+        despesas_df = df_apurado[df_apurado['Tipo'] == 'Despesa']
+        
+        # Dentro das despesas, filtra aquelas cuja descrição do banco contém 'TAR PIX'
+        # 'na=False' trata casos onde a descrição possa estar vazia
+        tarifas_df = despesas_df[despesas_df['Descricao_banco'].str.upper().str.contains('TAR PIX', na=False)]
+        
+        # Soma o valor das tarifas encontradas
+        total_tarifas_pix = tarifas_df['Valor'].sum()
+        # --- FIM DA CORREÇÃO ---
+
     # Converte as datas de string de volta para objetos de data para o template
-    for item in relatorio.apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
-    for item in relatorio.apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
-    for item in relatorio.conciliadas: item['Data'] = pd.to_datetime(item['Data'])
+    for item in apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
+    for item in apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
+    for item in conciliadas: item['Data'] = pd.to_datetime(item['Data'])
         
     contexto = {
-        'conciliadas': relatorio.conciliadas,
-        'apenas_banco': relatorio.apenas_banco,
-        'apenas_relatorio': relatorio.apenas_relatorio,
+        'conciliadas': conciliadas,
+        'apenas_banco': apenas_banco,
+        'apenas_relatorio': apenas_relatorio,
         'total_receitas_apuradas': f'R$ {total_receitas_apuradas:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
         'total_despesas_apuradas': f'R$ {total_despesas_apuradas:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
-        'active_page': 'home'
+        'total_tarifas_pix': f'R$ {total_tarifas_pix:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
+        'active_page': 'home',
     }
     return render(request, 'analisador/relatorio.html', contexto)
 
