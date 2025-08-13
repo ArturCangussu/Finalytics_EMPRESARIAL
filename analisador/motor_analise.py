@@ -9,7 +9,7 @@ import re
 import io
 import csv
 
-# --- FUNÇÃO PARA "CONSERTAR" O EXCEL MALFORMADO ---
+
 def sanitize_excel_file(uploaded_file):
     print("--- INICIANDO SANITIZAÇÃO DO ARQUIVO EXCEL ---")
     uploaded_file.seek(0)
@@ -61,17 +61,17 @@ def _processar_formato_sicoob_html(arquivo_html):
             raise ValueError("Corpo da tabela (tbody) não encontrado.")
             
         for i, linha_tr in enumerate(tbody.find_all('tr')):
-            # Desta vez, pegamos as células como objetos para analisar a descrição
+            
             celulas_obj = linha_tr.find_all('td')
             
-            # Validação primária (mesma de antes)
+            
             if len(celulas_obj) == 4 and celulas_obj[0].get_text().strip() and "SALDO" not in celulas_obj[2].get_text().upper():
                 
                 data = celulas_obj[0].get_text().strip()
                 documento = celulas_obj[1].get_text().strip()
                 
                 # ==============================================================================
-                # === NOVA LÓGICA PARA EXTRAIR APENAS A ÚLTIMA LINHA DA DESCRIÇÃO ===
+                # === LÓGICA PARA EXTRAIR APENAS A ÚLTIMA LINHA DA DESCRIÇÃO ===
                 # ==============================================================================
                 descricao_cell = celulas_obj[2]
                 # Pega todo o texto, usando '\n' como separador para manter as linhas
@@ -81,13 +81,13 @@ def _processar_formato_sicoob_html(arquivo_html):
                 
                 descricao_final = ' '.join(linhas) # Um fallback caso a lógica falhe
                 if linhas:
-                    # Pega a última linha da lista como a descrição principal
+                
                     descricao_final = linhas[-1]
                 # ==============================================================================
 
                 valor_str = celulas_obj[3].get_text().strip()
 
-                # Lógica para extrair C/D do valor (mesma de antes)
+                # Lógica para extrair C/D do valor 
                 lancamento = ''
                 valor_limpo = '0'
                 if valor_str and valor_str[-1] in ['C', 'D']:
@@ -126,7 +126,7 @@ def _processar_formato_sicoob_html(arquivo_html):
     
     return df_padronizado
 
-# --- O RESTANTE DO ARQUIVO PERMANECE IGUAL ---
+
 
 def _processar_formato_caixa(df):
     print("Formato Caixa Federal detectado.")

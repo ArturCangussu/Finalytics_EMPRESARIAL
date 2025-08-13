@@ -1,4 +1,4 @@
-/* Define as cores que você pediu como variáveis globais */
+
 :root {
     --bs-dark-rgb: 4, 28, 50; /* Azul Marinho para o fundo */
     --bs-body-color: #f8f9fa; /* Branco/Cinza claro para o texto */
@@ -9,7 +9,7 @@
     --amarelo-alerta: #ffc107;
 }
 
-/* Define as fontes que você pediu */
+
 body {
     font-family: 'Inter', sans-serif;
 }
@@ -22,7 +22,7 @@ body {
 .sidebar {
     width: 280px;
     min-height: 100vh;
-    background-color: #0c1c2c; /* Um azul marinho um pouco mais escuro */
+    background-color: #0c1c2c; 
     padding: 1rem;
     flex-shrink: 0; /* Impede a sidebar de encolher */
 }
@@ -35,7 +35,7 @@ body {
 /* --- FIM DA CORREÇÃO --- */
 
 
-/* Estilo da Sidebar (continua o mesmo) */
+/* Estilo da Sidebar  */
 .sidebar-header {
     margin-bottom: 1rem;
     padding-bottom: 1rem;
@@ -68,7 +68,7 @@ body {
 
 .chart-container {
     position: relative;
-    height: 350px; /* Usamos 'height' em vez de 'max-height' para ser mais direto */
+    height: 350px; 
 }
 
 

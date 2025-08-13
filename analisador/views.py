@@ -108,9 +108,7 @@ def detalhe_categoria(request, extrato_id, nome_categoria):
         subtopico=nome_categoria
     ).order_by('data')
 
-    # =======================================================================
-    # ================ LÓGICA DE FORMATAÇÃO DE DATA ADICIONADA ===============
-    # =======================================================================
+
     # Para cada transação, criamos um novo atributo com a data já formatada
     for t in transacoes:
         # Usamos o 'pd.to_datetime' que é robusto para converter os dados
@@ -126,7 +124,7 @@ def detalhe_categoria(request, extrato_id, nome_categoria):
     contexto = {
         'extrato': extrato,
         'nome_categoria': nome_categoria,
-        'transacoes': transacoes # A lista de transações agora tem o novo atributo
+        'transacoes': transacoes 
     }
     return render(request, 'analisador/detalhe_categoria.html', contexto)
 
@@ -146,7 +144,7 @@ def pagina_relatorio(request, extrato_id):
     extrato = Extrato.objects.get(id=extrato_id, usuario=request.user)
     transacoes = Transacao.objects.filter(extrato=extrato)
 
-    # Pega os valores dos filtros da URL (se existirem)
+    
     search_query = request.GET.get('q')
     data_inicio = request.GET.get('data_inicio')
     data_fim = request.GET.get('data_fim')
@@ -445,6 +443,6 @@ def pagina_conciliacao(request):
         'apenas_relatorio': apenas_relatorio,
         'active_page': 'home'
     }
-    # A MUDANÇA ESTÁ AQUI:
+    
     return render(request, 'analisador/relatorio.html', contexto) 
 
