@@ -45,7 +45,9 @@
                     <tr>
                         <td>{{ transacao.Data|date:"d/m/Y" }}</td>
                         <td>{{ transacao.Descricao_banco }}</td>
-                        <td class="text-end font-monospace valor-despesa">{{ transacao.Valor|floatformat:2 }}</td>
+                        <td class="text-end font-monospace {% if transacao.Tipo == 'Receita' %}valor-receita{% else %}valor-despesa{% endif %}">
+                            R$ {{ transacao.Valor|floatformat:2 }}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -73,7 +75,9 @@
                         <td>{{ transacao.Data|date:"d/m/Y" }}</td>
                         <td>{{ transacao.Descricao_relatorio }}</td>
                         <td>{{ transacao.Fornecedor }}</td>
-                        <td class="text-end font-monospace">{{ transacao.Valor|floatformat:2 }}</td>
+                        <td class="text-end font-monospace {% if transacao.Tipo == 'Receita' %}valor-receita{% else %}valor-despesa{% endif %}">
+                        R$ {{ transacao.Valor|floatformat:2 }}
+                    </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -101,7 +105,9 @@
                         <td>{{ transacao.Data|date:"d/m/Y" }}</td>
                         <td>{{ transacao.Descricao_banco }}</td>
                         <td>{{ transacao.Descricao_relatorio }}</td>
-                        <td class="text-end font-monospace">{{ transacao.Valor|floatformat:2 }}</td>
+                        <td class="text-end font-monospace {% if transacao.Tipo == 'Receita' %}valor-receita{% else %}valor-despesa{% endif %}">
+                            R$ {{ transacao.Valor|floatformat:2 }}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

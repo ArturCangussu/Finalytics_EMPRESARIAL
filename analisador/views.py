@@ -7,13 +7,13 @@ from django.urls import reverse
 from django.contrib import messages # Importa o sistema de mensagens do Django
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
-from .motor_analise import processar_extrato
-from .motor_analise import conciliar_dataframes
-from .motor_analise import sanitize_excel_file
-from .motor_analise import _processar_formato_sicoob_html
-from .motor_analise import _processar_formato_caixa
-from .motor_analise import _processar_formato_sicoob
-from .motor_analise import _processar_relatorio_seu_condominio_csv
+from .motor_analise import (
+    _processar_formato_sicoob_html,
+    _processar_formato_caixa,
+    _processar_formato_sicoob,
+    _processar_relatorio_seu_condominio_csv,
+    conciliar_dataframes
+)
 
 @login_required
 def pagina_inicial(request):
@@ -21,44 +21,48 @@ def pagina_inicial(request):
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
         arquivo_seu_condominio = request.FILES.get('arquivo_seu_condominio')
-        mes_referencia = request.POST.get('mes_referencia') # Mantido para consistência
+        mes_referencia = request.POST.get('mes_referencia')
 
-        if not arquivo_extrato or not arquivo_seu_condominio:
+        if not arquivo_extrato or not arquivo_seu_condominio or not mes_referencia:
             messages.error(request, 'Por favor, envie os dois arquivos.')
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
-            # --- CORREÇÃO APLICADA AQUI ---
-            # 1. Processa o extrato bancário com lógica de detecção
+            Extrato.objects.create(
+                usuario=request.user,
+                mes_referencia=f"Conciliação - {mes_referencia}"
+            )
+            
+            # --- LÓGICA DE DETECÇÃO DO EXTRATO BANCÁRIO CORRIGIDA ---
             print("Processando extrato do banco...")
+            df_banco = None
             if arquivo_extrato.name.lower().endswith('.html'):
-                # Se for HTML, usa o leitor de HTML do Sicoob
-                df_banco = _processar_formato_sicoob_html(arquivo_extrato)
-            else:
-                # Se for Excel, verifica as colunas para decidir qual leitor usar
+                df_banco_bruto = _processar_formato_sicoob_html(arquivo_extrato)
+                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
+            else: # Assume que é .xlsx
                 df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
+                df_banco_bruto = None
                 if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
                     df_banco_bruto = _processar_formato_caixa(df_com_skip)
                 elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
                     df_banco_bruto = _processar_formato_sicoob(df_com_skip)
+                
+                if df_banco_bruto is not None:
+                    df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
                 else:
                     raise ValueError("Formato de extrato bancário Excel não reconhecido.")
-                # Seleciona apenas as colunas necessárias para a conciliação
-                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
             
-            # 2. Processa o relatório "Seu Condomínio" (lógica existente e correta)
+            # --- FIM DA CORREÇÃO ---
+            
             print("Processando relatório 'Seu Condomínio'...")
             df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
             
-            # 3. Roda o motor de conciliação
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
-            # 4. Converte as datas para string antes de salvar na sessão
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
                 if 'Data' in df_resultado.columns:
                     df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
 
-            # 5. Salva os resultados na sessão e redireciona
             request.session['conciliadas'] = conciliadas.to_dict('records')
             request.session['apenas_banco'] = apenas_banco.to_dict('records')
             request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')

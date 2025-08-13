@@ -209,73 +209,62 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
 # --- FUNÇÃO PARA LER O RELATÓRIO "SEU CONDOMÍNIO" (TRATANDO COMO EXCEL) ---
 def _processar_relatorio_seu_condominio_csv(arquivo_csv):
     """
-    Lê o relatório CSV malformado do "Seu Condomínio", processando linha por linha
-    para extrair apenas as transações válidas.
+    Lê o relatório CSV do "Seu Condomínio", implementando corretamente a lógica de
+    "máquina de estados" para classificar Receitas e Despesas.
     """
-    print("--- INICIANDO PROCESSAMENTO CSV (MÉTODO MANUAL FINAL) ---")
+    print("--- INICIANDO PROCESSAMENTO CSV (LÓGICA DE ESTADO CORRIGIDA) ---")
     try:
         arquivo_csv.seek(0)
-        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='UTF-8')
-        
+        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='latin-1')
         reader = csv.reader(arquivo_csv_texto, delimiter=',', quotechar='"')
 
         dados_limpos = []
-        current_tipo = ''
-        current_grupo = ''
-        current_subgrupo = ''
-
-        # Pula as 4 primeiras linhas de título que não são dados
-        for _ in range(4):
-            next(reader)
-        
-        # Lê a 5ª linha que deveria ser o cabeçalho, mas ignoramos para tratar manualmente
-        header_falso = next(reader)
-        print(f"DEBUG: Linha de cabeçalho ignorada: {header_falso}")
-
+        current_tipo = '' # Inicia sem tipo definido
 
         for i, row in enumerate(reader):
-            # Linhas de transação válidas no CSV têm 5 colunas
-            if len(row) == 5:
-                descricao_item, observacoes, fornecedor, data, valor = row
-                
-                if not data: continue
+            # Ignora linhas vazias ou o cabeçalho original
+            if not row or not row[0] or 'pagador_fornecedor' in row[0]:
+                continue
 
-                valor_limpo = pd.to_numeric(valor, errors='coerce')
-                descricao_final = f"{current_grupo} - {current_subgrupo} - {descricao_item}".strip(' - ')
+            primeira_coluna = row[0].upper()
+
+            # 1. Verifica se a linha é um TÍTULO para mudar o estado (a sua lógica)
+            if 'RECEITAS' in primeira_coluna:
+                current_tipo = 'Receita'
+                print(f"DEBUG: Linha {i+1} -> Estado alterado para RECEITA")
+                continue # Pula para a próxima linha, pois esta é um título
+            
+            elif 'DESPESAS' in primeira_coluna:
+                current_tipo = 'Despesa'
+                print(f"DEBUG: Linha {i+1} -> Estado alterado para DESPESA")
+                continue
+
+            # 2. Se não for um título, tenta processar como uma transação válida
+            # Uma transação válida tem 5 campos e uma data na 4ª posição (índice 3)
+            if len(row) == 5 and '/' in row[3]:
+                descricao_item, observacoes, fornecedor, data, valor_str = row
+                
+                valor_limpo = pd.to_numeric(valor_str, errors='coerce')
 
                 dados_limpos.append({
-                    'Tipo': current_tipo,
+                    'Tipo': current_tipo, # Usa o último tipo que foi definido
                     'Data': data,
-                    'Descricao': descricao_final,
+                    'Descricao': descricao_item,
                     'Fornecedor': fornecedor,
                     'Valor': valor_limpo
                 })
-            
-            # Linhas de título/categoria no CSV têm 6 colunas
-            elif len(row) == 6:
-                descricao_grupo = row[0]
-                if "RECEITAS" in descricao_grupo.upper():
-                    current_tipo = 'Receita'
-                    current_grupo = ''
-                elif "DESPESAS" in descricao_grupo.upper():
-                    current_tipo = 'Despesa'
-                    current_grupo = ''
-                else:
-                    if row[2] == '':
-                        current_grupo = descricao_grupo
-                        current_subgrupo = ''
-                    else:
-                        current_subgrupo = descricao_grupo
-        
+
         if not dados_limpos:
             raise ValueError("Nenhuma linha de transação válida foi encontrada no arquivo CSV.")
 
         df_final = pd.DataFrame(dados_limpos)
         df_final['Data'] = pd.to_datetime(df_final['Data'], dayfirst=True, errors='coerce')
         df_final.dropna(subset=['Data'], inplace=True)
+        df_final.fillna({'Valor': 0, 'Fornecedor': '', 'Descricao': ''}, inplace=True)
         
         print(f"--- PROCESSAMENTO CSV CONCLUÍDO. {len(df_final)} transações encontradas. ---")
         return df_final
+        
     except Exception as e:
         raise ValueError(f"Não foi possível processar o arquivo CSV do Seu Condomínio. Erro: {e}")
     
