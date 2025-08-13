@@ -215,7 +215,7 @@ def _processar_relatorio_seu_condominio_csv(arquivo_csv):
     print("--- INICIANDO PROCESSAMENTO CSV (MÉTODO MANUAL FINAL) ---")
     try:
         arquivo_csv.seek(0)
-        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='latin-1')
+        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='UTF-8')
         
         reader = csv.reader(arquivo_csv_texto, delimiter=',', quotechar='"')
 
