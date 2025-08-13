@@ -20,7 +20,6 @@ import numpy as np
 def pagina_inicial(request):
     contexto = {'active_page': 'home'}
     if request.method == 'POST':
-        # ... (código para pegar os arquivos e o mês) ...
         arquivo_extrato = request.FILES.get('arquivo_extrato')
         arquivo_seu_condominio = request.FILES.get('arquivo_seu_condominio')
         mes_referencia = request.POST.get('mes_referencia')
@@ -30,23 +29,54 @@ def pagina_inicial(request):
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
-            # 1. Processa os arquivos (lógica existente)
-            df_banco = _processar_formato_sicoob_html(arquivo_extrato)
+            Extrato.objects.create(
+                usuario=request.user,
+                mes_referencia=f"Conciliação - {mes_referencia}"
+            )
+
+            # --- LÓGICA DE DETECÇÃO DO EXTRATO BANCÁRIO CORRIGIDA ---
+            print("Processando extrato do banco...")
+            df_banco = None
+            if arquivo_extrato.name.lower().endswith('.html'):
+                df_banco_bruto = _processar_formato_sicoob_html(arquivo_extrato)
+                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
+            else:  # Assume que é .xlsx
+                # Usamos um engine que suporta o formato .xls antigo, mais seguro
+                df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1, engine='openpyxl')
+                df_banco_bruto = None
+                
+                if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
+                    print("DEBUG: Formato Caixa Federal (Excel) detectado.")
+                    df_banco_bruto = _processar_formato_caixa(df_com_skip)
+                elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
+                    print("DEBUG: Formato Sicoob (Excel) detectado.")
+                    df_banco_bruto = _processar_formato_sicoob(df_com_skip)
+                
+                if df_banco_bruto is not None:
+                    # Garante que as colunas necessárias existem antes de selecionar
+                    colunas_necessarias = ['Data', 'Descricao', 'Valor', 'Topico']
+                    if all(col in df_banco_bruto.columns for col in colunas_necessarias):
+                        df_banco = df_banco_bruto[colunas_necessarias]
+                    else:
+                        raise ValueError(f"O processador do extrato não retornou as colunas esperadas. Colunas encontradas: {df_banco_bruto.columns.tolist()}")
+                else:
+                    raise ValueError("Formato de extrato bancário Excel não reconhecido.")
+            
+            # --- FIM DA CORREÇÃO ---
+
+            print("Processando relatório 'Seu Condomínio'...")
             df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
             
-            # 2. Roda a conciliação (lógica existente)
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
             conciliadas = conciliadas.replace({np.nan: None})
             apenas_banco = apenas_banco.replace({np.nan: None})
             apenas_relatorio = apenas_relatorio.replace({np.nan: None})
 
-            # 3. Converte as datas para string para salvar no banco
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
                 if 'Data' in df_resultado.columns:
                     df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
-            
-            # 4. SALVA O RESULTADO NO BANCO DE DADOS
+
             novo_relatorio = RelatorioConciliacao.objects.create(
                 usuario=request.user,
                 mes_referencia=mes_referencia,
@@ -55,7 +85,6 @@ def pagina_inicial(request):
                 apenas_relatorio=apenas_relatorio.to_dict('records')
             )
 
-            # 5. Redireciona para a página de resultados, passando o ID do novo relatório
             return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
@@ -422,7 +451,22 @@ def criar_regras_em_lote(request):
 def ver_conciliacao(request, relatorio_id):
     """Exibe um relatório de conciliação salvo no banco de dados."""
     relatorio = RelatorioConciliacao.objects.get(id=relatorio_id, usuario=request.user)
+
+    conciliadas = relatorio.conciliadas
+    apenas_banco = relatorio.apenas_banco
+    apenas_relatorio = relatorio.apenas_relatorio
     
+    transacoes_apuradas = conciliadas + apenas_banco
+    
+    total_receitas_apuradas = 0
+    total_despesas_apuradas = 0
+
+    if transacoes_apuradas:
+        df_apurado = pd.DataFrame(transacoes_apuradas)
+        somas_por_tipo = df_apurado.groupby('Tipo')['Valor'].sum()
+        total_receitas_apuradas = somas_por_tipo.get('Receita', 0)
+        total_despesas_apuradas = somas_por_tipo.get('Despesa', 0)
+                                                    
     # Converte as datas de string de volta para objetos de data para o template
     for item in relatorio.apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
     for item in relatorio.apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
@@ -432,6 +476,8 @@ def ver_conciliacao(request, relatorio_id):
         'conciliadas': relatorio.conciliadas,
         'apenas_banco': relatorio.apenas_banco,
         'apenas_relatorio': relatorio.apenas_relatorio,
+        'total_receitas_apuradas': f'R$ {total_receitas_apuradas:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
+        'total_despesas_apuradas': f'R$ {total_despesas_apuradas:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
         'active_page': 'home'
     }
     return render(request, 'analisador/relatorio.html', contexto)

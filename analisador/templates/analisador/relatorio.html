@@ -28,6 +28,24 @@
         </div>
     </div>
 
+        <div class="card mb-4">
+        <div class="card-header"><h2 class="h5 mb-0">Totais Apurados no Período (Baseado no Extrato do Banco)</h2></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4>Receita Total: 
+                        <span class="valor-receita">{{ total_receitas_apuradas }}</span>
+                    </h4>
+                </div>
+                <div class="col-md-6">
+                    <h4>Despesa Total: 
+                        <span class="valor-despesa">{{ total_despesas_apuradas }}</span>
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {% if apenas_banco %}
     <div class="card mb-4">
         <div class="card-header bg-warning text-dark"><h2 class="h5 mb-0">🚨 Apenas no Extrato Bancário</h2></div>
