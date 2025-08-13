@@ -286,6 +286,12 @@ def conciliar_dataframes(df_banco, df_relatorio):
     print("--- INICIANDO MOTOR DE CONCILIAÇÃO ---")
     banco_comp = df_banco.copy()
     banco_comp.rename(columns={'Topico': 'Tipo'}, inplace=True)
+    if 'Descricao' in banco_comp.columns:
+        cnpj_seu_condominio = '14.488.585 0001-45'
+        # Encontra as linhas onde a descrição do banco contém o CNPJ
+        filtro_cnpj = banco_comp['Descricao'].str.contains(cnpj_seu_condominio, na=False)
+        # Nessas linhas, substitui a descrição inteira por 'Seu Condomínio'
+        banco_comp.loc[filtro_cnpj, 'Descricao'] = 'Seu Condomínio'
     relatorio_comp = df_relatorio.copy()
     banco_comp['Valor'] = banco_comp['Valor'].round(2)
     relatorio_comp['Valor'] = relatorio_comp['Valor'].round(2)

@@ -28,28 +28,41 @@ def pagina_inicial(request):
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
-            # Passo 1: Processa o extrato bancário
+            # --- CORREÇÃO APLICADA AQUI ---
+            # 1. Processa o extrato bancário com lógica de detecção
             print("Processando extrato do banco...")
-            df_banco = _processar_formato_sicoob_html(arquivo_extrato)
+            if arquivo_extrato.name.lower().endswith('.html'):
+                # Se for HTML, usa o leitor de HTML do Sicoob
+                df_banco = _processar_formato_sicoob_html(arquivo_extrato)
+            else:
+                # Se for Excel, verifica as colunas para decidir qual leitor usar
+                df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
+                if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
+                    df_banco_bruto = _processar_formato_caixa(df_com_skip)
+                elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
+                    df_banco_bruto = _processar_formato_sicoob(df_com_skip)
+                else:
+                    raise ValueError("Formato de extrato bancário Excel não reconhecido.")
+                # Seleciona apenas as colunas necessárias para a conciliação
+                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
             
-            # Passo 2: Processa o relatório "Seu Condomínio" com o leitor CSV correto
+            # 2. Processa o relatório "Seu Condomínio" (lógica existente e correta)
             print("Processando relatório 'Seu Condomínio'...")
             df_seu_condominio = _processar_relatorio_seu_condominio_csv(arquivo_seu_condominio)
             
-            # Passo 3: Roda o motor de conciliação
+            # 3. Roda o motor de conciliação
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
-            # Passo 4: Converte as colunas de data para string antes de salvar na sessão
+            # 4. Converte as datas para string antes de salvar na sessão
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
                 if 'Data' in df_resultado.columns:
                     df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
 
-            # Passo 5: Salva os resultados na sessão
+            # 5. Salva os resultados na sessão e redireciona
             request.session['conciliadas'] = conciliadas.to_dict('records')
             request.session['apenas_banco'] = apenas_banco.to_dict('records')
             request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
 
-            # Passo 6: Redireciona para a página de resultados
             return redirect('pagina_conciliacao')
 
         except Exception as e:
