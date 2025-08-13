@@ -40,7 +40,7 @@ def converter_data_robusta(data):
 def _processar_formato_sicoob_html(arquivo_html):
     print("--- INICIANDO PROCESSAMENTO SICOOB HTML (COM LIMPEZA DE DESCRIÇÃO) ---")
     try:
-        conteudo = arquivo_html.read().decode('latin-1', errors='ignore')
+        conteudo = arquivo_html.read().decode('utf-8', errors='ignore')
         soup = BeautifulSoup(conteudo, 'html.parser')
         
         tabela_lancamentos = None
@@ -215,7 +215,7 @@ def _processar_relatorio_seu_condominio_csv(arquivo_csv):
     print("--- INICIANDO PROCESSAMENTO CSV (LÓGICA DE ESTADO CORRIGIDA) ---")
     try:
         arquivo_csv.seek(0)
-        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='latin-1')
+        arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='utf-8')
         reader = csv.reader(arquivo_csv_texto, delimiter=',', quotechar='"')
 
         dados_limpos = []
