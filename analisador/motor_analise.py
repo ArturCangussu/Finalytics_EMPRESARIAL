@@ -130,15 +130,37 @@ def _processar_formato_sicoob_html(arquivo_html):
 
 def _processar_formato_caixa(df):
     print("Formato Caixa Federal detectado.")
-    # ... (código inalterado) ...
+    
+    # --- INÍCIO DA CORREÇÃO ---
+    # 1. Filtra o DataFrame para manter apenas linhas que são transações reais.
+    # Primeiro, garantimos que as colunas de data e valor existam.
+    if 'Data Lançamento' not in df.columns or 'Valor Lançamento' not in df.columns:
+        raise ValueError("Colunas 'Data Lançamento' ou 'Valor Lançamento' não encontradas no extrato da Caixa.")
+
+    # Converte a coluna de data, tratando erros. Linhas sem data válida (como cabeçalhos) se tornarão NaT (Not a Time).
+    df['Data Lançamento'] = pd.to_datetime(df['Data Lançamento'], dayfirst=True, errors='coerce')
+
+    # Remove todas as linhas onde a data não pôde ser convertida (linhas de cabeçalho, saldo, etc.)
+    df.dropna(subset=['Data Lançamento'], inplace=True)
+    
+    # Remove linhas onde o valor do lançamento é zero ou nulo, que não são transações relevantes.
+    df['Valor Lançamento'] = pd.to_numeric(df['Valor Lançamento'], errors='coerce')
+    df.dropna(subset=['Valor Lançamento'], inplace=True)
+    df = df[df['Valor Lançamento'] != 0]
+    # --- FIM DA CORREÇÃO ---
+
+    # O restante do seu código original continua a partir daqui, agora com dados limpos.
     df['origem_descricao'] = np.where(df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True).isna(), 'Historico', 'Nome/Razao Social')
     df['Nome/Razão Social'] = df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True)
     df['Nome/Razão Social'] = df['Nome/Razão Social'].fillna(df['Histórico'])
+    
+    # Renomeia as colunas DEPOIS de usá-las para o filtro
     df_padronizado = df.rename(columns={'Valor Lançamento': 'Valor', 'Nome/Razão Social': 'Descricao', 'Data Lançamento': 'Data'})
-    df_padronizado['Data'] = df_padronizado['Data'].apply(converter_data_robusta)
-    df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
+    
+    # A lógica de tipo e valor absoluto agora opera em um DataFrame limpo
     df_padronizado['Topico'] = np.where(df_padronizado['Valor'] < 0, 'Despesa', 'Receita')
     df_padronizado['Valor'] = df_padronizado['Valor'].abs()
+    
     return df_padronizado
 
 def _processar_formato_sicoob(df):
@@ -152,7 +174,8 @@ def _processar_formato_sicoob(df):
     df_padronizado['Valor'] = df_padronizado['Valor'].str.replace('C', '', regex=False).str.replace('D', '', regex=False).str.strip()
     df_padronizado['Valor'] = df_padronizado['Valor'].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
     df_padronizado['Valor'] = pd.to_numeric(df_padronizado['Valor'], errors='coerce').fillna(0)
-    return df_padronizado
+    return df_padronizado[['Data', 'Descricao', 'Valor', 'Topico']]
+
 
 def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
     # ... (código inalterado) ...
@@ -176,6 +199,8 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
     df_processado.dropna(subset=['Data', 'Descricao'], how='all', inplace=True)
     regras_do_usuario = Regra.objects.filter(usuario=usuario_logado)
     regras_de_categorizacao = {regra.palavra_chave: regra.categoria for regra in regras_do_usuario}
+
+    
     def categorizar_transacao(descricao):
         if not isinstance(descricao, str): return 'Não categorizado'
         for palavra_chave, categoria in regras_de_categorizacao.items():
@@ -228,31 +253,35 @@ def _processar_relatorio_seu_condominio_csv(arquivo_csv):
 
             primeira_coluna = row[0].upper()
 
-            # 1. Verifica se a linha é um TÍTULO para mudar o estado (a sua lógica)
+            # 1. MUDANÇA DE ESTADO: Procura por RECEITAS ou DESPESAS
             if 'RECEITAS' in primeira_coluna:
                 current_tipo = 'Receita'
-                print(f"DEBUG: Linha {i+1} -> Estado alterado para RECEITA")
-                continue # Pula para a próxima linha, pois esta é um título
+                continue 
             
             elif 'DESPESAS' in primeira_coluna:
                 current_tipo = 'Despesa'
-                print(f"DEBUG: Linha {i+1} -> Estado alterado para DESPESA")
                 continue
 
-            # 2. Se não for um título, tenta processar como uma transação válida
+            # 2. PROCESSAMENTO DE TRANSAÇÃO
             # Uma transação válida tem 5 campos e uma data na 4ª posição (índice 3)
-            if len(row) == 5 and '/' in row[3]:
-                descricao_item, observacoes, fornecedor, data, valor_str = row
+            if len(row) >= 5 and '/' in row[3]:
+                descricao_item, _, fornecedor, data, valor_str = row[:5]
                 
+                # Ignora a linha de cabeçalho que pode ser confundida com uma transação
+                if "CONTABILIZADO" in data.upper():
+                    continue
+
                 valor_limpo = pd.to_numeric(valor_str, errors='coerce')
 
-                dados_limpos.append({
-                    'Tipo': current_tipo, # Usa o último tipo que foi definido
-                    'Data': data,
-                    'Descricao': descricao_item,
-                    'Fornecedor': fornecedor,
-                    'Valor': valor_limpo
-                })
+                # Adiciona a transação à lista com o TIPO do estado atual
+                if current_tipo: # Só adiciona se já estivermos dentro de uma seção
+                    dados_limpos.append({
+                        'Tipo': current_tipo,
+                        'Data': data,
+                        'Descricao': descricao_item,
+                        'Fornecedor': fornecedor,
+                        'Valor': valor_limpo
+                    })
 
         if not dados_limpos:
             raise ValueError("Nenhuma linha de transação válida foi encontrada no arquivo CSV.")
@@ -282,6 +311,9 @@ def conciliar_dataframes(df_banco, df_relatorio):
         # Nessas linhas, substitui a descrição inteira por 'Seu Condomínio'
         banco_comp.loc[filtro_cnpj, 'Descricao'] = 'Seu Condomínio'
     relatorio_comp = df_relatorio.copy()
+
+    banco_comp['Data'] = pd.to_datetime(banco_comp['Data']).dt.normalize()
+    relatorio_comp['Data'] = pd.to_datetime(relatorio_comp['Data']).dt.normalize()
     banco_comp['Valor'] = banco_comp['Valor'].round(2)
     relatorio_comp['Valor'] = relatorio_comp['Valor'].round(2)
     banco_comp['id_unico'] = banco_comp.groupby(['Data', 'Valor', 'Tipo']).cumcount()
