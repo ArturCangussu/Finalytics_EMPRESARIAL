@@ -160,3 +160,15 @@ body {
 .sidebar-header img {
     border-radius: 50%;
 }
+
+
+.table > tbody > tr.linha-destaque-sutil {
+    background-color: rgba(255, 193, 7, 0.15) !important; /* Amarelo sutil (um pouco mais forte) */
+}
+
+/* Esta segunda regra garante que, em tabelas com efeito hover, a nossa cor 
+  de destaque seja mantida (e até um pouco escurecida) ao passar o mouse.
+*/
+.table-hover > tbody > tr.linha-destaque-sutil:hover {
+    background-color: rgba(255, 193, 7, 0.2) !important;
+}

@@ -92,7 +92,7 @@
                 </thead>
                 <tbody>
                     {% for transacao in apenas_relatorio %}
-                    <tr>
+                    <tr class="{% if transacao.destaque %}linha-destaque-sutil{% endif %}">
                         <td>{{ transacao.Data|date:"d/m/Y" }}</td>
                         <td>{{ transacao.Descricao_relatorio }}</td>
                         <td>{{ transacao.Fornecedor }}</td>
@@ -122,7 +122,7 @@
                 </thead>
                 <tbody>
                     {% for transacao in conciliadas %}
-                    <tr>
+                    <tr class="{% if transacao.destaque %}linha-destaque-sutil{% endif %}">
                         <td>{{ transacao.Data|date:"d/m/Y" }}</td>
                         <td>{{ transacao.Descricao_banco }}</td>
                         <td>{{ transacao.Descricao_relatorio }}</td>

@@ -160,3 +160,8 @@ body {
 .sidebar-header img {
     border-radius: 50%;
 }
+
+
+.linha-destaque-sutil {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}

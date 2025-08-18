@@ -17,6 +17,31 @@ from .motor_analise import (
 import numpy as np
 
 
+PALAVRAS_DESTAQUE = [
+    "taxa de condomínio", "taxas de condomínio", "arrec extra", "juros por atraso",
+    "multa por atraso", "consumo de gás", "(-) tarifas de recebimentos",
+    "(-) descontos nas cobranças", "fundo de reserva", "fundo reserva", "tar pix", "TAXA DE CONDOMÍNIO JUNHO/2025"
+]
+
+
+def marcar_destaques(lista_transacoes, campo_descricao):
+    """
+    Percorre uma lista de transações e retorna uma NOVA LISTA com a chave 'destaque' adicionada.
+    """
+    nova_lista = []
+    if lista_transacoes: # Garante que a lista não está vazia
+        for transacao_original in lista_transacoes:
+            transacao_nova = transacao_original.copy() # Cria uma cópia do dicionário
+            descricao = transacao_nova.get(campo_descricao)
+            transacao_nova['destaque'] = False
+            if isinstance(descricao, str):
+                desc_lower = descricao.lower().strip()
+                if any(palavra in desc_lower for palavra in PALAVRAS_DESTAQUE):
+                    transacao_nova['destaque'] = True
+            nova_lista.append(transacao_nova)
+    return nova_lista
+
+
 @login_required
 def pagina_inicial(request):
     contexto = {'active_page': 'home'}
@@ -444,47 +469,45 @@ def ver_conciliacao(request, relatorio_id):
     """Exibe um relatório de conciliação salvo no banco de dados."""
     relatorio = RelatorioConciliacao.objects.get(id=relatorio_id, usuario=request.user)
 
-    conciliadas = relatorio.conciliadas
-    apenas_banco = relatorio.apenas_banco
-    apenas_relatorio = relatorio.apenas_relatorio
+    # 1. Carrega os dados originais do banco.
+    conciliadas_originais = relatorio.conciliadas
+    apenas_banco_originais = relatorio.apenas_banco
+    apenas_relatorio_originais = relatorio.apenas_relatorio
+
+    # 2. Cria NOVAS listas com a lógica de destaque aplicada.
+    lista_conciliadas = marcar_destaques(conciliadas_originais, 'Descricao_relatorio')
+    lista_apenas_relatorio = marcar_destaques(apenas_relatorio_originais, 'Descricao_relatorio')
     
-    transacoes_apuradas = conciliadas + apenas_banco
-    
+    # Usa a lista original do banco, pois ela não tem a coluna de descrição do relatório.
+    lista_apenas_banco = apenas_banco_originais
+
+    # 3. Calcula os totais.
+    transacoes_apuradas = lista_conciliadas + lista_apenas_banco
     total_receitas_apuradas = 0
     total_despesas_apuradas = 0
     total_tarifas_pix = 0
 
     if transacoes_apuradas:
         df_apurado = pd.DataFrame(transacoes_apuradas)
-        
-        # 1. Calcula totais de Receita e Despesa
         somas_por_tipo = df_apurado.groupby('Tipo')['Valor'].sum()
         total_receitas_apuradas = somas_por_tipo.get('Receita', 0)
         total_despesas_apuradas = somas_por_tipo.get('Despesa', 0)
-
-        # --- CORREÇÃO APLICADA AQUI ---
-        # 2. Calcula o total de tarifas usando o DataFrame
         
-        # Filtra apenas as despesas
         despesas_df = df_apurado[df_apurado['Tipo'] == 'Despesa']
-        
-        # Dentro das despesas, filtra aquelas cuja descrição do banco contém 'TAR PIX'
-        # 'na=False' trata casos onde a descrição possa estar vazia
-        tarifas_df = despesas_df[despesas_df['Descricao_banco'].str.upper().str.contains('TAR PIX', na=False)]
-        
-        # Soma o valor das tarifas encontradas
-        total_tarifas_pix = tarifas_df['Valor'].sum()
-        # --- FIM DA CORREÇÃO ---
+        if 'Descricao_banco' in despesas_df.columns:
+            tarifas_df = despesas_df[despesas_df['Descricao_banco'].str.upper().str.contains('TAR PIX', na=False)]
+            total_tarifas_pix = tarifas_df['Valor'].sum()
 
-    # Converte as datas de string de volta para objetos de data para o template
-    for item in apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
-    for item in apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
-    for item in conciliadas: item['Data'] = pd.to_datetime(item['Data'])
+    # 4. Converte as datas para exibição.
+    for item in lista_apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
+    for item in lista_apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
+    for item in lista_conciliadas: item['Data'] = pd.to_datetime(item['Data'])
         
+    # 5. Envia as listas NOVAS e MODIFICADAS para o template.
     contexto = {
-        'conciliadas': conciliadas,
-        'apenas_banco': apenas_banco,
-        'apenas_relatorio': apenas_relatorio,
+        'conciliadas': lista_conciliadas,
+        'apenas_banco': lista_apenas_banco,
+        'apenas_relatorio': lista_apenas_relatorio,
         'total_receitas_apuradas': f'R$ {total_receitas_apuradas:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
         'total_despesas_apuradas': f'R$ {total_despesas_apuradas:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
         'total_tarifas_pix': f'R$ {total_tarifas_pix:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
