@@ -47,57 +47,69 @@ def pagina_inicial(request):
     contexto = {'active_page': 'home'}
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
-        # CORREÇÃO 1: Usamos getlist para receber múltiplos arquivos
+        
+        # --- MUDANÇA 1: Receber a LISTA de arquivos ---
+        # Usamos .getlist() para pegar múltiplos arquivos com o mesmo 'name'.
+        # O nome 'arquivos_seu_condominio' deve ser o mesmo do 'name' no seu HTML.
         arquivos_seu_condominio = request.FILES.getlist('arquivos_seu_condominio')
+        
         mes_referencia = request.POST.get('mes_referencia')
 
+        # A validação agora checa se a lista de arquivos está vazia.
         if not arquivo_extrato or not arquivos_seu_condominio or not mes_referencia:
-            messages.error(request, 'Por favor, envie o extrato do banco e pelo menos um relatório do "Seu Condomínio".')
+            messages.error(request, 'Por favor, envie o extrato e pelo menos um relatório .csv.')
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
-            Extrato.objects.create(
-                usuario=request.user,
-                mes_referencia=f"Conciliação - {mes_referencia}"
-            )
-
-            # Lógica de detecção do extrato bancário (sem alterações)
+            # LÓGICA DE DETECÇÃO DO EXTRATO BANCÁRIO (continua igual)
             print("Processando extrato do banco...")
             df_banco = None
             if arquivo_extrato.name.lower().endswith('.html'):
-                df_banco = _processar_formato_sicoob_html(arquivo_extrato)
-            else:
+                df_banco_bruto = _processar_formato_sicoob_html(arquivo_extrato)
+                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
+            else:  # Assume .xlsx
                 df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
-                if 'Data Lançamento' in df_com_skip.columns:
-                    df_banco = _processar_formato_caixa(df_com_skip)
+                df_banco_bruto = None
+                
+                if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
+                    df_banco_bruto = _processar_formato_caixa(df_com_skip)
                 elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
-                    df_banco = _processar_formato_sicoob(df_com_skip)
+                    df_banco_bruto = _processar_formato_sicoob(df_com_skip)
+                
+                if df_banco_bruto is not None:
+                    colunas_necessarias = ['Data', 'Descricao', 'Valor', 'Topico']
+                    if all(col in df_banco_bruto.columns for col in colunas_necessarias):
+                        df_banco = df_banco_bruto[colunas_necessarias]
+                    else:
+                        raise ValueError(f"O processador do extrato não retornou as colunas esperadas. Encontradas: {df_banco_bruto.columns.tolist()}")
                 else:
                     raise ValueError("Formato de extrato bancário Excel não reconhecido.")
             
-            # --- CORREÇÃO 2: Processa a lista de relatórios ---
-            print(f"Processando {len(arquivos_seu_condominio)} relatório(s) do 'Seu Condomínio'...")
-            lista_de_dfs_relatorio = []
+            # --- MUDANÇA 2: Processar cada CSV e juntá-los ---
+            print(f"Processando {len(arquivos_seu_condominio)} relatório(s) 'Seu Condomínio'...")
+            
+            lista_de_dfs = []
             for arquivo_csv in arquivos_seu_condominio:
-                # Processa cada arquivo individualmente com a função que já temos
+                # A sua função _processar_relatorio_seu_condominio_csv já faz o trabalho pesado para um arquivo.
                 df_individual = _processar_relatorio_seu_condominio_csv(arquivo_csv)
-                lista_de_dfs_relatorio.append(df_individual)
+                lista_de_dfs.append(df_individual)
             
-            # Junta todos os DataFrames individuais em um só
-            df_seu_condominio = pd.concat(lista_de_dfs_relatorio, ignore_index=True)
-            # --- FIM DA CORREÇÃO ---
+            # Juntamos todos os DataFrames da lista em um só.
+            df_seu_condominio = pd.concat(lista_de_dfs, ignore_index=True)
             
+            # O RESTO DO CÓDIGO CONTINUA IGUAL!
+            # Roda a conciliação
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
-            # ... (resto da função para salvar e redirecionar permanece igual) ...
+            # Prepara os dados para salvar
             conciliadas = conciliadas.replace({np.nan: None})
             apenas_banco = apenas_banco.replace({np.nan: None})
             apenas_relatorio = apenas_relatorio.replace({np.nan: None})
-
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
                 if 'Data' in df_resultado.columns:
                     df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
 
+            # Salva o relatório no banco de dados
             novo_relatorio = RelatorioConciliacao.objects.create(
                 usuario=request.user,
                 mes_referencia=mes_referencia,
@@ -105,17 +117,6 @@ def pagina_inicial(request):
                 apenas_banco=apenas_banco.to_dict('records'),
                 apenas_relatorio=apenas_relatorio.to_dict('records')
             )
-
-                        # CORREÇÃO: Converte as colunas de data para string antes de salvar na sessão
-            for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
-                if 'Data' in df_resultado.columns:
-                    # Converte o objeto Timestamp para uma string no formato 'AAAA-MM-DD'
-                    df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
-
-            # Salva os resultados na sessão (agora sem objetos Timestamp)
-            request.session['conciliadas'] = conciliadas.to_dict('records')
-            request.session['apenas_banco'] = apenas_banco.to_dict('records')
-            request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
             return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
