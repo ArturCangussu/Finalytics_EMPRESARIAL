@@ -105,6 +105,17 @@ def pagina_inicial(request):
                 apenas_banco=apenas_banco.to_dict('records'),
                 apenas_relatorio=apenas_relatorio.to_dict('records')
             )
+
+                        # CORREÇÃO: Converte as colunas de data para string antes de salvar na sessão
+            for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
+                if 'Data' in df_resultado.columns:
+                    # Converte o objeto Timestamp para uma string no formato 'AAAA-MM-DD'
+                    df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
+
+            # Salva os resultados na sessão (agora sem objetos Timestamp)
+            request.session['conciliadas'] = conciliadas.to_dict('records')
+            request.session['apenas_banco'] = apenas_banco.to_dict('records')
+            request.session['apenas_relatorio'] = apenas_relatorio.to_dict('records')
             return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
