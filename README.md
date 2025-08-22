@@ -8,9 +8,9 @@ Aplicação web Django que automatiza a conciliação de extratos bancários con
 ### 📸 Screenshot 
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/91bb7e6c-d7ec-443f-bb25-6a9b4d213b09" width="32%" alt="Tela de Upload de Arquivos">
+  <img src="https://github.com/user-attachments/assets/81698ce0-d2e7-4aca-a819-311b930d455c" width="32%" alt="Tela de Upload de Arquivos">
   <img src="https://github.com/user-attachments/assets/b290dc69-eb4a-4c78-8f34-70745f280ffb" width="32%" alt="Relatório de Conciliação">
-  <img src="https://github.com/user-attachments/assets/81698ce0-d2e7-4aca-a819-311b930d455c" width="32%" alt="Destaque Visual nas Linhas">
+  <img src="https://github.com/user-attachments/assets/91bb7e6c-d7ec-443f-bb25-6a9b4d213b09" width="32%" alt="Tela de Upload de Arquivos">
 </p>
 ---
 
