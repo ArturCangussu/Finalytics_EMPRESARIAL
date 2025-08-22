@@ -60,7 +60,6 @@ Em resumo, o Finanalytics transforma um processo manual, lento e arriscado em um
 
 ### 🚀 Como Executar o Projeto
 
-(Esta parte mostra profissionalismo!)
 
 ```bash
 # Clone o repositório
