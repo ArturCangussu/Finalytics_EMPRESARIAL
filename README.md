@@ -1,7 +1,7 @@
 # Finanalytics - Conciliador Financeiro
 
 
-Aplicação web Django que automatiza a conciliação de extratos bancários contra relatórios externos.
+> Aplicação web Django que automatiza a conciliação de extratos bancários contra relatórios externos.
 
 ---
 
