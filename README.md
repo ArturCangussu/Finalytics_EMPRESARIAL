@@ -7,7 +7,7 @@ Aplicação web Django que automatiza a conciliação de extratos bancários con
 
 ### 📸 Screenshot 
 
-![Demo do Finanalytics](<img width="1920" height="1032" alt="Image" src="https://github.com/user-attachments/assets/91bb7e6c-d7ec-443f-bb25-6a9b4d213b09")
+![Demo do Finanalytics](<img width="1920" height="1032" alt="Image" src="<img width="1920" height="1032" alt="Image" src="https://github.com/user-attachments/assets/91bb7e6c-d7ec-443f-bb25-6a9b4d213b09" />)
 
 ---
 
