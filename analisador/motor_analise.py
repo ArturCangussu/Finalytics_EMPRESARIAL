@@ -70,9 +70,9 @@ def _processar_formato_sicoob_html(arquivo_html):
                 data = celulas_obj[0].get_text().strip()
                 documento = celulas_obj[1].get_text().strip()
                 
-                # ==============================================================================
+
                 # === LÓGICA PARA EXTRAIR APENAS A ÚLTIMA LINHA DA DESCRIÇÃO ===
-                # ==============================================================================
+ 
                 descricao_cell = celulas_obj[2]
                 # Pega todo o texto, usando '\n' como separador para manter as linhas
                 texto_completo_com_linhas = descricao_cell.get_text(separator='\n').strip()
@@ -83,7 +83,6 @@ def _processar_formato_sicoob_html(arquivo_html):
                 if linhas:
                 
                     descricao_final = linhas[-1]
-                # ==============================================================================
 
                 valor_str = celulas_obj[3].get_text().strip()
 
@@ -131,9 +130,8 @@ def _processar_formato_sicoob_html(arquivo_html):
 def _processar_formato_caixa(df):
     print("Formato Caixa Federal detectado.")
     
-    # --- INÍCIO DA CORREÇÃO ---
+    
     # 1. Filtra o DataFrame para manter apenas linhas que são transações reais.
-    # Primeiro, garantimos que as colunas de data e valor existam.
     if 'Data Lançamento' not in df.columns or 'Valor Lançamento' not in df.columns:
         raise ValueError("Colunas 'Data Lançamento' ou 'Valor Lançamento' não encontradas no extrato da Caixa.")
 
@@ -147,9 +145,9 @@ def _processar_formato_caixa(df):
     df['Valor Lançamento'] = pd.to_numeric(df['Valor Lançamento'], errors='coerce')
     df.dropna(subset=['Valor Lançamento'], inplace=True)
     df = df[df['Valor Lançamento'] != 0]
-    # --- FIM DA CORREÇÃO ---
+    
 
-    # O restante do seu código original continua a partir daqui, agora com dados limpos.
+    
     df['origem_descricao'] = np.where(df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True).isna(), 'Historico', 'Nome/Razao Social')
     df['Nome/Razão Social'] = df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True)
     df['Nome/Razão Social'] = df['Nome/Razão Social'].fillna(df['Histórico'])
@@ -165,7 +163,6 @@ def _processar_formato_caixa(df):
 
 def _processar_formato_sicoob(df):
     print("Formato Sicoob XLSX detectado.")
-    # ... (código inalterado) ...
     df['origem_descricao'] = 'Historico'
     df_padronizado = df.rename(columns={'HISTÓRICO': 'Descricao', 'VALOR': 'Valor', 'DATA': 'Data'})
     df_padronizado['Data'] = df_padronizado['Data'].apply(converter_data_robusta)
@@ -178,7 +175,6 @@ def _processar_formato_sicoob(df):
 
 
 def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
-    # ... (código inalterado) ...
     if arquivo_extrato.name.lower().endswith('.html'):
         df_processado = _processar_formato_sicoob_html(arquivo_extrato)
     else:
@@ -306,9 +302,7 @@ def conciliar_dataframes(df_banco, df_relatorio):
     banco_comp.rename(columns={'Topico': 'Tipo'}, inplace=True)
     if 'Descricao' in banco_comp.columns:
         cnpj_seu_condominio = '14.488.585 0001-45'
-        # Encontra as linhas onde a descrição do banco contém o CNPJ
         filtro_cnpj = banco_comp['Descricao'].str.contains(cnpj_seu_condominio, na=False)
-        # Nessas linhas, substitui a descrição inteira por 'Seu Condomínio'
         banco_comp.loc[filtro_cnpj, 'Descricao'] = 'Seu Condomínio'
     relatorio_comp = df_relatorio.copy()
 

@@ -32,7 +32,7 @@ body {
     padding: 2rem; /* Adiciona espaçamento interno */
     width: calc(100% - 280px); /* FORÇA a largura a ocupar o resto */
 }
-/* --- FIM DA CORREÇÃO --- */
+
 
 
 /* Estilo da Sidebar  */
@@ -75,7 +75,6 @@ body {
 
 /* --- ESTILOS PARA RESPONSIVIDADE (TELAS PEQUENAS) --- */
 
-/* A 'media query' abaixo só aplica estes estilos em telas com largura máxima de 992px (tablets e celulares) */
 @media (max-width: 992px) {
     .sidebar {
         position: fixed; /* Fica fixa na tela */
@@ -98,7 +97,6 @@ body {
     }
 }
 
-/* Esconde o botão hamburger em telas grandes */
 .sidebar-toggle {
     display: none;
     position: fixed;
@@ -154,7 +152,7 @@ body {
 
 .flash-on-scroll {
     animation: flash-effect 2s ease-out;
-    border-radius: 5px; /*  que o shadow fique contido */
+    border-radius: 5px; 
 }
 
 .sidebar-header img {
@@ -163,12 +161,10 @@ body {
 
 
 .table > tbody > tr.linha-destaque-sutil {
-    background-color: rgba(255, 193, 7, 0.15) !important; /* Amarelo sutil (um pouco mais forte) */
+    background-color: rgba(255, 193, 7, 0.15) !important; 
 }
 
-/* Esta segunda regra garante que, em tabelas com efeito hover, a nossa cor 
-  de destaque seja mantida (e até um pouco escurecida) ao passar o mouse.
-*/
+
 .table-hover > tbody > tr.linha-destaque-sutil:hover {
     background-color: rgba(255, 193, 7, 0.2) !important;
 }

@@ -48,8 +48,6 @@ def pagina_inicial(request):
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
         
-        # --- MUDANÇA 1: Receber a LISTA de arquivos ---
-        # Usamos .getlist() para pegar múltiplos arquivos com o mesmo 'name'.
         # O nome 'arquivos_seu_condominio' deve ser o mesmo do 'name' no seu HTML.
         arquivos_seu_condominio = request.FILES.getlist('arquivos_seu_condominio')
         
@@ -97,7 +95,6 @@ def pagina_inicial(request):
             # Juntamos todos os DataFrames da lista em um só.
             df_seu_condominio = pd.concat(lista_de_dfs, ignore_index=True)
             
-            # O RESTO DO CÓDIGO CONTINUA IGUAL!
             # Roda a conciliação
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
@@ -163,17 +160,13 @@ def detalhe_categoria(request, extrato_id, nome_categoria):
     ).order_by('data')
 
 
-    # Para cada transação, criamos um novo atributo com a data já formatada
     for t in transacoes:
-        # Usamos o 'pd.to_datetime' que é robusto para converter os dados
         data_obj = pd.to_datetime(t.data, errors='coerce')
         
-        # Verificamos se a data é válida antes de formatar
         if pd.notna(data_obj):
             t.data_formatada = data_obj.strftime('%d/%m/%Y')
         else:
-            t.data_formatada = 'Data Inválida' # Ou pode deixar em branco: ''
-    # =======================================================================
+            t.data_formatada = 'Data Inválida' 
 
     contexto = {
         'extrato': extrato,
@@ -219,7 +212,7 @@ def pagina_relatorio(request, extrato_id):
     # --- Início do processamento com Pandas ---
     df = pd.DataFrame(list(transacoes.values('data', 'descricao', 'valor', 'topico', 'subtopico', 'origem_descricao')))
 
-    # ETAPA DE FILTRO: Aplicar filtros ANTES de qualquer cálculo
+
     if not df.empty:
         df['data_dt'] = pd.to_datetime(df['data'], errors='coerce') # Coluna técnica para filtrar
         if search_query:
@@ -231,10 +224,9 @@ def pagina_relatorio(request, extrato_id):
 
     # Se o DataFrame ficou vazio após o filtro, trate como se não houvesse transações
     if df.empty:
-        # (código para contexto vazio aqui, omitido por brevidade, mas pode ser adicionado se necessário)
         pass
 
-    # --- Continuação do processamento com o DataFrame (agora já filtrado) ---
+
     df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
     df['Data'] = pd.to_datetime(df['data'], errors='coerce').dt.strftime('%d/%m/%Y')
 
@@ -264,7 +256,7 @@ def pagina_relatorio(request, extrato_id):
     labels_grafico = list(resumo_d_series.index)
     dados_grafico = [float(valor) for valor in resumo_d_series.abs().values]
     
-    # DADOS PARA GRÁFICO DE RECEITAS (NOVO)
+    # DADOS PARA GRÁFICO DE RECEITAS
     labels_grafico_receitas = list(resumo_r_series.index)
     dados_grafico_receitas = [float(valor) for valor in resumo_r_series.abs().values]
     
@@ -330,12 +322,10 @@ def comparar_extratos(request):
 
 @login_required
 def reprocessar_relatorio(request, extrato_id):
-    # ... (a preparação das regras continua a mesma)
     regras_do_usuario = Regra.objects.filter(usuario=request.user)
     regras_de_categorizacao = { regra.palavra_chave: regra.categoria for regra in regras_do_usuario }
 
     def categorizar_transacao(descricao):
-        # ... (a função de categorizar continua a mesma)
         if not isinstance(descricao, str): return 'Descrição Inválida'
         for palavra_chave, categoria in regras_de_categorizacao.items():
             if palavra_chave.lower() in descricao.lower():
@@ -345,7 +335,6 @@ def reprocessar_relatorio(request, extrato_id):
     transacoes_para_atualizar = Transacao.objects.filter(extrato_id=extrato_id, usuario=request.user)
 
     for transacao in transacoes_para_atualizar:
-        # SÓ REPROCESSA SE A TRANSAÇÃO NÃO ESTIVER "TRAVADA"
         if not transacao.categorizacao_manual:
             transacao.subtopico = categorizar_transacao(transacao.descricao)
             transacao.save()
@@ -383,7 +372,6 @@ def apagar_extrato(request, extrato_id):
 
 @login_required
 def editar_regra(request, regra_id):
-    # Busca a regra específica, garantindo que pertence ao usuário
     regra = Regra.objects.get(id=regra_id, usuario=request.user)
 
     if request.method == 'POST':
@@ -417,11 +405,9 @@ def editar_transacao(request, transacao_id):
         transacao.descricao = request.POST.get('descricao')
         transacao.subtopico = request.POST.get('subtopico')
 
-        # ATIVA A "TRAVA"
         transacao.categorizacao_manual = True
 
         transacao.save()
-        # Redireciona de volta para o relatório do extrato original
         return redirect('pagina_relatorio', extrato_id=transacao.extrato.id)
 
     contexto = {
@@ -452,10 +438,8 @@ def cadastro_usuario(request):
 @login_required
 def criar_regras_em_lote(request):
     if request.method == 'POST':
-        # Pega a lista de todas as palavras-chave dos checkboxes que foram marcados
         palavras_chave = request.POST.getlist('palavras_chave_selecionadas')
         
-        # Pega a categoria que o usuário digitou no campo de texto
         nova_categoria = request.POST.get('categoria_em_lote')
         
         extrato_id = request.POST.get('extrato_id')
@@ -463,7 +447,6 @@ def criar_regras_em_lote(request):
         if palavras_chave and nova_categoria and extrato_id:
             # Para cada palavra-chave selecionada, cria uma nova regra
             for palavra in palavras_chave:
-                # Usamos get_or_create para não criar regras duplicadas
                 Regra.objects.get_or_create(
                     usuario=request.user,
                     palavra_chave=palavra,
@@ -471,10 +454,8 @@ def criar_regras_em_lote(request):
                 )
             
             messages.success(request, f'{len(palavras_chave)} regras foram criadas/atualizadas com a categoria "{nova_categoria}".')
-            # Redireciona para reprocessar o relatório e ver o resultado imediatamente
             return redirect('reprocessar_relatorio', extrato_id=extrato_id)
 
-    # Se algo der errado, ou se não for POST, volta para a home
     messages.error(request, 'Ocorreu um erro ao processar a solicitação.')
     return redirect('home')
 
@@ -484,19 +465,18 @@ def ver_conciliacao(request, relatorio_id):
     """Exibe um relatório de conciliação salvo no banco de dados."""
     relatorio = RelatorioConciliacao.objects.get(id=relatorio_id, usuario=request.user)
 
-    # 1. Carrega os dados originais do banco.
     conciliadas_originais = relatorio.conciliadas
     apenas_banco_originais = relatorio.apenas_banco
     apenas_relatorio_originais = relatorio.apenas_relatorio
 
-    # 2. Cria NOVAS listas com a lógica de destaque aplicada.
+
     lista_conciliadas = marcar_destaques(conciliadas_originais, 'Descricao_relatorio')
     lista_apenas_relatorio = marcar_destaques(apenas_relatorio_originais, 'Descricao_relatorio')
     
-    # Usa a lista original do banco, pois ela não tem a coluna de descrição do relatório.
+
     lista_apenas_banco = apenas_banco_originais
 
-    # 3. Calcula os totais.
+
     transacoes_apuradas = lista_conciliadas + lista_apenas_banco
     total_receitas_apuradas = 0
     total_despesas_apuradas = 0
@@ -513,12 +493,12 @@ def ver_conciliacao(request, relatorio_id):
             tarifas_df = despesas_df[despesas_df['Descricao_banco'].str.upper().str.contains('TAR PIX', na=False)]
             total_tarifas_pix = tarifas_df['Valor'].sum()
 
-    # 4. Converte as datas para exibição.
+
     for item in lista_apenas_banco: item['Data'] = pd.to_datetime(item['Data'])
     for item in lista_apenas_relatorio: item['Data'] = pd.to_datetime(item['Data'])
     for item in lista_conciliadas: item['Data'] = pd.to_datetime(item['Data'])
         
-    # 5. Envia as listas NOVAS e MODIFICADAS para o template.
+    
     contexto = {
         'conciliadas': lista_conciliadas,
         'apenas_banco': lista_apenas_banco,
@@ -535,9 +515,8 @@ def ver_conciliacao(request, relatorio_id):
 
 @login_required
 def apagar_conciliacao(request, relatorio_id):
-    # Garante que apenas o método POST pode apagar, por segurança
     if request.method == 'POST':
-        # Encontra o relatório, garantindo que ele pertence ao usuário logado
+
         try:
             relatorio = RelatorioConciliacao.objects.get(id=relatorio_id, usuario=request.user)
             relatorio.delete()
@@ -545,5 +524,4 @@ def apagar_conciliacao(request, relatorio_id):
         except RelatorioConciliacao.DoesNotExist:
             messages.error(request, "Relatório não encontrado ou você não tem permissão para apagá-lo.")
     
-    # Redireciona de volta para a página de histórico
     return redirect('historico')
