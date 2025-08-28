@@ -1,14 +1,17 @@
-Finanalytics - Conciliador Financeiro
+# Finanalytics - Conciliador Financeiro
 
 
-Aplicação web Django que automatiza a conciliação de extratos bancários contra relatórios externos.
+> Aplicação web Django que automatiza a conciliação de extratos bancários contra relatórios externos.
 
 ---
 
-### 📸 Screenshot / GIF do Projeto
+### 📸 Screenshots
 
-![Demo do Finanalytics](link_para_sua_imagem_ou_gif.gif)
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/81698ce0-d2e7-4aca-a819-311b930d455c" width="32%" alt="Tela de Upload de Arquivos">
+  <img src="https://github.com/user-attachments/assets/b290dc69-eb4a-4c78-8f34-70745f280ffb" width="32%" alt="Relatório de Conciliação">
+  <img src="https://github.com/user-attachments/assets/91bb7e6c-d7ec-443f-bb25-6a9b4d213b09" width="32%" alt="Relátório de Conciliação">
+</p>
 ---
 
 ### 🎯 Sobre o Projeto
@@ -57,7 +60,6 @@ Em resumo, o Finanalytics transforma um processo manual, lento e arriscado em um
 
 ### 🚀 Como Executar o Projeto
 
-(Esta parte mostra profissionalismo!)
 
 ```bash
 # Clone o repositório
@@ -76,8 +78,3 @@ $ python manage.py migrate
 $ python manage.py runserver
 ```
 
----
-
-### 📄 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
