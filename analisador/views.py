@@ -46,64 +46,53 @@ def marcar_destaques(lista_transacoes, campo_descricao):
 
 @login_required
 def pagina_inicial(request):
-    # <<< INÍCIO DAS MUDANÇAS PARA O MÉTODO GET >>>
-    # Prepara os dados para preencher os dropdowns do formulário
+    # Lógica para o método GET (preenchimento dos dropdowns)
     if request.method == 'GET':
         hoje = datetime.date.today()
         ano_atual = hoje.year
         mes_atual = hoje.month
-        # Cria uma lista de anos (ano passado, atual, e próximos 3)
         lista_anos = list(range(ano_atual - 1, ano_atual + 4)) 
-        
         contexto = {
-            'active_page': 'home',
-            'ano_atual': ano_atual,
-            'mes_atual': mes_atual,
-            'lista_anos': lista_anos
+            'active_page': 'home', 'ano_atual': ano_atual,
+            'mes_atual': mes_atual, 'lista_anos': lista_anos
         }
         return render(request, 'analisador/pagina_inicial.html', contexto)
-    # <<< FIM DAS MUDANÇAS PARA O MÉTODO GET >>>
 
     # Lógica do POST (quando o formulário é enviado)
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
         arquivos_seu_condominio = request.FILES.getlist('arquivos_seu_condominio')
-        
-        # <<< MUDANÇA: Lendo os dados dos dropdowns >>>
         mes_num_str = request.POST.get('mes_selecionado')
         ano_num_str = request.POST.get('ano_selecionado')
 
+        # Recria o contexto base para o caso de erro, para não quebrar a página
+        hoje = datetime.date.today()
+        contexto_erro = {
+            'active_page': 'home', 'ano_atual': hoje.year,
+            'mes_atual': hoje.month, 'lista_anos': list(range(hoje.year - 1, hoje.year + 4))
+        }
+
         if not arquivo_extrato or not arquivos_seu_condominio or not mes_num_str or not ano_num_str:
             messages.error(request, 'Por favor, envie todos os arquivos e selecione mês/ano.')
-            # Recria o contexto para recarregar a página corretamente
-            hoje = datetime.date.today()
-            contexto = {
-                'active_page': 'home', 'ano_atual': hoje.year, 'mes_atual': hoje.month,
-                'lista_anos': list(range(hoje.year - 1, hoje.year + 4))
-            }
-            return render(request, 'analisador/pagina_inicial.html', contexto)
+            return render(request, 'analisador/pagina_inicial.html', contexto_erro)
         
         try:
-            # Converte para números
             mes_num = int(mes_num_str)
             ano_num = int(ano_num_str)
 
-            # <<< MUDANÇA: Recria a string 'mes_referencia' para salvar no banco >>>
-            # Usaremos um mapa inverso para obter o nome do mês a partir do número
             mapa_meses_inverso = {
                 1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril', 5: 'Maio', 6: 'Junho',
                 7: 'Julho', 8: 'Agosto', 9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
             }
             nome_mes = mapa_meses_inverso.get(mes_num, '')
-            mes_referencia = f"{capfirst(nome_mes)}/{ano_num}" # Ex: "Setembro/2025"
+            mes_referencia = f"{capfirst(nome_mes)}/{ano_num}"
 
-            # LÓGICA DE DETECÇÃO DO EXTRATO BANCÁRIO (continua igual)
             print("Processando extrato do banco...")
             df_banco = None
             if arquivo_extrato.name.lower().endswith('.html'):
                 df_banco_bruto = _processar_formato_sicoob_html(arquivo_extrato)
                 df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
-            else:  # Assume .xlsx
+            else:
                 df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
                 df_banco_bruto = None
                 if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
@@ -116,7 +105,6 @@ def pagina_inicial(request):
                 else:
                     raise ValueError("Formato de extrato bancário Excel não reconhecido.")
 
-            # LÓGICA DE FILTRO (agora usando mes_num e ano_num diretamente)
             if df_banco is not None and not df_banco.empty:
                 df_banco['Data'] = pd.to_datetime(df_banco['Data'], errors='coerce')
                 filtro_mes_ano = (df_banco['Data'].dt.month == mes_num) & (df_banco['Data'].dt.year == ano_num)
@@ -126,10 +114,19 @@ def pagina_inicial(request):
                 transacoes_depois = len(df_banco)
 
                 print(f"Filtro por mês/ano '{mes_referencia}' aplicado: {transacoes_antes} -> {transacoes_depois} transações.")
+                
+                # <<< MUDANÇA PRINCIPAL: Interrompe se não houver transações >>>
                 if transacoes_depois == 0 and transacoes_antes > 0:
-                     messages.warning(request, f"Atenção: Nenhuma transação foi encontrada no extrato para o mês de referência '{mes_referencia}'. Verifique se o arquivo e o mês selecionado estão corretos.")
+                    messages.warning(request, f"Atenção: Nenhuma transação foi encontrada no extrato para o mês de referência '{mes_referencia}'. Verifique se o arquivo e o mês selecionado estão corretos.")
+                    # Recria o contexto para manter a seleção do usuário na página
+                    contexto_retorno = {
+                        'active_page': 'home',
+                        'ano_atual': ano_num, # Devolve o ano que o usuário selecionou
+                        'mes_atual': mes_num, # Devolve o mês que o usuário selecionou
+                        'lista_anos': list(range(hoje.year - 1, hoje.year + 4))
+                    }
+                    return render(request, 'analisador/pagina_inicial.html', contexto_retorno)
             
-            # O restante do código permanece praticamente o mesmo
             print(f"Processando {len(arquivos_seu_condominio)} relatório(s) 'Seu Condomínio'...")
             lista_de_dfs = [ _processar_relatorio_seu_condominio_csv(arquivo_csv) for arquivo_csv in arquivos_seu_condominio ]
             df_seu_condominio = pd.concat(lista_de_dfs, ignore_index=True)
@@ -144,27 +141,19 @@ def pagina_inicial(request):
                     df_resultado['Data'] = pd.to_datetime(df_resultado['Data'], errors='coerce').dt.strftime('%Y-%m-%d')
 
             novo_relatorio = RelatorioConciliacao.objects.create(
-                usuario=request.user,
-                mes_referencia=mes_referencia, # Salvando a string reconstruída
+                usuario=request.user, mes_referencia=mes_referencia,
                 conciliadas=conciliadas.to_dict('records'),
                 apenas_banco=apenas_banco.to_dict('records'),
                 apenas_relatorio=apenas_relatorio.to_dict('records')
             )
-            return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
+            return redirect('ver_conciliacacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
             import traceback
-            traceback.print_exc() # Isso irá imprimir o erro detalhado no seu console
+            traceback.print_exc()
             messages.error(request, f"Erro ao processar os arquivos: {e}")
-            # Recria o contexto para recarregar a página corretamente
-            hoje = datetime.date.today()
-            contexto = {
-                'active_page': 'home', 'ano_atual': hoje.year, 'mes_atual': hoje.month,
-                'lista_anos': list(range(hoje.year - 1, hoje.year + 4))
-            }
-            return render(request, 'analisador/pagina_inicial.html', contexto)
+            return render(request, 'analisador/pagina_inicial.html', contexto_erro)
     
-    # Este return agora é teoricamente inalcançável, mas é uma boa prática mantê-lo.
     return redirect('home')
 
 @login_required
