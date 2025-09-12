@@ -615,9 +615,9 @@ def soma_tarifas(request):
             total_tarifas_pix = tarifas_pix_df['Valor'].sum()
 
             contexto['resultados_prontos'] = True
-            contexto['total_receitas'] = total_receitas
-            contexto['total_despesas'] = total_despesas
-            contexto['total_tarifas_pix'] = total_tarifas_pix
+            contexto['total_receitas'] = f'{total_receitas:_.2f}'.replace('.', ',').replace('_', '.')
+            contexto['total_despesas'] = f'{total_despesas:_.2f}'.replace('.', ',').replace('_', '.')
+            contexto['total_tarifas_pix'] = f'{total_tarifas_pix:_.2f}'.replace('.', ',').replace('_', '.')
             
             messages.success(request, 'Análise concluída com sucesso!')
             return render(request, 'analisador/soma_tarifas.html', contexto)
