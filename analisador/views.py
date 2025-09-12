@@ -614,15 +614,29 @@ def soma_tarifas(request):
             tarifas_pix_df = despesas_df[despesas_df['Descricao'].str.upper().str.contains('TAR PIX', na=False)]
             total_tarifas_pix = tarifas_pix_df['Valor'].sum()
 
-            detalhe_tarifas_df = tarifas_pix_df[['Data', 'Descricao', 'Valor']].copy()
-            detalhe_tarifas_df['Data'] = pd.to_datetime(detalhe_tarifas_df['Data']).dt.strftime('%d/%m/%Y')
+            # --- INÍCIO DA CORREÇÃO ---
+            # Prepara a lista detalhada de tarifas, APENAS SE HOUVER ALGUMA
+            if not tarifas_pix_df.empty:
+                detalhe_tarifas_df = tarifas_pix_df[['Data', 'Descricao', 'Valor']].copy()
+                # Garante que a coluna de data seja convertida para datetime antes de formatar
+                detalhe_tarifas_df['Data'] = pd.to_datetime(detalhe_tarifas_df['Data'], errors='coerce').dt.strftime('%d/%m/%Y')
+                contexto['lista_tarifas'] = detalhe_tarifas_df.to_dict('records')
+            else:
+                contexto['lista_tarifas'] = [] # Passa uma lista vazia se não houver tarifas
+            # --- FIM DA CORREÇÃO ---
 
             # Adiciona os resultados ao contexto para mostrar na página
             contexto['resultados_prontos'] = True
             contexto['total_receitas'] = f'{total_receitas:_.2f}'.replace('.', ',').replace('_', '.')
             contexto['total_despesas'] = f'{total_despesas:_.2f}'.replace('.', ',').replace('_', '.')
             contexto['total_tarifas_pix'] = f'{total_tarifas_pix:_.2f}'.replace('.', ',').replace('_', '.')
-            contexto['lista_tarifas'] = detalhe_tarifas_df.to_dict('records') # <-- LINHA ADICIONADA
             
             messages.success(request, 'Análise concluída com sucesso!')
             return render(request, 'analisador/soma_tarifas.html', contexto)
+
+        except Exception as e:
+            messages.error(request, f"Erro ao processar o extrato: {e}")
+            return render(request, 'analisador/soma_tarifas.html', contexto)
+
+    # Para o método GET (primeiro acesso à página)
+    return render(request, 'analisador/soma_tarifas.html', contexto)
