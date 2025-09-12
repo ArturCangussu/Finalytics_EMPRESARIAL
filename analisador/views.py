@@ -14,7 +14,9 @@ from .motor_analise import (
     _processar_relatorio_seu_condominio_csv,
     conciliar_dataframes
 )
+import datetime
 import numpy as np
+from django.utils.text import capfirst
 
 
 PALAVRAS_DESTAQUE = [
@@ -44,21 +46,57 @@ def marcar_destaques(lista_transacoes, campo_descricao):
 
 @login_required
 def pagina_inicial(request):
-    contexto = {'active_page': 'home'}
+    # <<< INÍCIO DAS MUDANÇAS PARA O MÉTODO GET >>>
+    # Prepara os dados para preencher os dropdowns do formulário
+    if request.method == 'GET':
+        hoje = datetime.date.today()
+        ano_atual = hoje.year
+        mes_atual = hoje.month
+        # Cria uma lista de anos (ano passado, atual, e próximos 3)
+        lista_anos = list(range(ano_atual - 1, ano_atual + 4)) 
+        
+        contexto = {
+            'active_page': 'home',
+            'ano_atual': ano_atual,
+            'mes_atual': mes_atual,
+            'lista_anos': lista_anos
+        }
+        return render(request, 'analisador/pagina_inicial.html', contexto)
+    # <<< FIM DAS MUDANÇAS PARA O MÉTODO GET >>>
+
+    # Lógica do POST (quando o formulário é enviado)
     if request.method == 'POST':
         arquivo_extrato = request.FILES.get('arquivo_extrato')
-        
-        # O nome 'arquivos_seu_condominio' deve ser o mesmo do 'name' no seu HTML.
         arquivos_seu_condominio = request.FILES.getlist('arquivos_seu_condominio')
         
-        mes_referencia = request.POST.get('mes_referencia')
+        # <<< MUDANÇA: Lendo os dados dos dropdowns >>>
+        mes_num_str = request.POST.get('mes_selecionado')
+        ano_num_str = request.POST.get('ano_selecionado')
 
-        # A validação agora checa se a lista de arquivos está vazia.
-        if not arquivo_extrato or not arquivos_seu_condominio or not mes_referencia:
-            messages.error(request, 'Por favor, envie o extrato e pelo menos um relatório .csv.')
+        if not arquivo_extrato or not arquivos_seu_condominio or not mes_num_str or not ano_num_str:
+            messages.error(request, 'Por favor, envie todos os arquivos e selecione mês/ano.')
+            # Recria o contexto para recarregar a página corretamente
+            hoje = datetime.date.today()
+            contexto = {
+                'active_page': 'home', 'ano_atual': hoje.year, 'mes_atual': hoje.month,
+                'lista_anos': list(range(hoje.year - 1, hoje.year + 4))
+            }
             return render(request, 'analisador/pagina_inicial.html', contexto)
         
         try:
+            # Converte para números
+            mes_num = int(mes_num_str)
+            ano_num = int(ano_num_str)
+
+            # <<< MUDANÇA: Recria a string 'mes_referencia' para salvar no banco >>>
+            # Usaremos um mapa inverso para obter o nome do mês a partir do número
+            mapa_meses_inverso = {
+                1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril', 5: 'Maio', 6: 'Junho',
+                7: 'Julho', 8: 'Agosto', 9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+            }
+            nome_mes = mapa_meses_inverso.get(mes_num, '')
+            mes_referencia = f"{capfirst(nome_mes)}/{ano_num}" # Ex: "Setembro/2025"
+
             # LÓGICA DE DETECÇÃO DO EXTRATO BANCÁRIO (continua igual)
             print("Processando extrato do banco...")
             df_banco = None
@@ -68,48 +106,46 @@ def pagina_inicial(request):
             else:  # Assume .xlsx
                 df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
                 df_banco_bruto = None
-                
                 if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
                     df_banco_bruto = _processar_formato_caixa(df_com_skip)
                 elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
                     df_banco_bruto = _processar_formato_sicoob(df_com_skip)
                 
                 if df_banco_bruto is not None:
-                    colunas_necessarias = ['Data', 'Descricao', 'Valor', 'Topico']
-                    if all(col in df_banco_bruto.columns for col in colunas_necessarias):
-                        df_banco = df_banco_bruto[colunas_necessarias]
-                    else:
-                        raise ValueError(f"O processador do extrato não retornou as colunas esperadas. Encontradas: {df_banco_bruto.columns.tolist()}")
+                    df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
                 else:
                     raise ValueError("Formato de extrato bancário Excel não reconhecido.")
+
+            # LÓGICA DE FILTRO (agora usando mes_num e ano_num diretamente)
+            if df_banco is not None and not df_banco.empty:
+                df_banco['Data'] = pd.to_datetime(df_banco['Data'], errors='coerce')
+                filtro_mes_ano = (df_banco['Data'].dt.month == mes_num) & (df_banco['Data'].dt.year == ano_num)
+                
+                transacoes_antes = len(df_banco)
+                df_banco = df_banco[filtro_mes_ano].copy()
+                transacoes_depois = len(df_banco)
+
+                print(f"Filtro por mês/ano '{mes_referencia}' aplicado: {transacoes_antes} -> {transacoes_depois} transações.")
+                if transacoes_depois == 0 and transacoes_antes > 0:
+                     messages.warning(request, f"Atenção: Nenhuma transação foi encontrada no extrato para o mês de referência '{mes_referencia}'. Verifique se o arquivo e o mês selecionado estão corretos.")
             
-            # --- MUDANÇA 2: Processar cada CSV e juntá-los ---
+            # O restante do código permanece praticamente o mesmo
             print(f"Processando {len(arquivos_seu_condominio)} relatório(s) 'Seu Condomínio'...")
-            
-            lista_de_dfs = []
-            for arquivo_csv in arquivos_seu_condominio:
-                # A sua função _processar_relatorio_seu_condominio_csv já faz o trabalho pesado para um arquivo.
-                df_individual = _processar_relatorio_seu_condominio_csv(arquivo_csv)
-                lista_de_dfs.append(df_individual)
-            
-            # Juntamos todos os DataFrames da lista em um só.
+            lista_de_dfs = [ _processar_relatorio_seu_condominio_csv(arquivo_csv) for arquivo_csv in arquivos_seu_condominio ]
             df_seu_condominio = pd.concat(lista_de_dfs, ignore_index=True)
             
-            # Roda a conciliação
             conciliadas, apenas_banco, apenas_relatorio = conciliar_dataframes(df_banco, df_seu_condominio)
 
-            # Prepara os dados para salvar
             conciliadas = conciliadas.replace({np.nan: None})
             apenas_banco = apenas_banco.replace({np.nan: None})
             apenas_relatorio = apenas_relatorio.replace({np.nan: None})
             for df_resultado in [conciliadas, apenas_banco, apenas_relatorio]:
                 if 'Data' in df_resultado.columns:
-                    df_resultado['Data'] = df_resultado['Data'].dt.strftime('%Y-%m-%d')
+                    df_resultado['Data'] = pd.to_datetime(df_resultado['Data'], errors='coerce').dt.strftime('%Y-%m-%d')
 
-            # Salva o relatório no banco de dados
             novo_relatorio = RelatorioConciliacao.objects.create(
                 usuario=request.user,
-                mes_referencia=mes_referencia,
+                mes_referencia=mes_referencia, # Salvando a string reconstruída
                 conciliadas=conciliadas.to_dict('records'),
                 apenas_banco=apenas_banco.to_dict('records'),
                 apenas_relatorio=apenas_relatorio.to_dict('records')
@@ -117,10 +153,19 @@ def pagina_inicial(request):
             return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
+            import traceback
+            traceback.print_exc() # Isso irá imprimir o erro detalhado no seu console
             messages.error(request, f"Erro ao processar os arquivos: {e}")
+            # Recria o contexto para recarregar a página corretamente
+            hoje = datetime.date.today()
+            contexto = {
+                'active_page': 'home', 'ano_atual': hoje.year, 'mes_atual': hoje.month,
+                'lista_anos': list(range(hoje.year - 1, hoje.year + 4))
+            }
             return render(request, 'analisador/pagina_inicial.html', contexto)
     
-    return render(request, 'analisador/pagina_inicial.html', contexto)
+    # Este return agora é teoricamente inalcançável, mas é uma boa prática mantê-lo.
+    return redirect('home')
 
 @login_required
 def gerenciar_regras(request):

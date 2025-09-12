@@ -42,12 +42,34 @@
                                     <input type="file" class="form-control" name="arquivos_seu_condominio" id="arquivo_seu_condominio" required accept=".csv" multiple>
                                 </div>
 
-                        <div class="mb-3">
-                            <label for="mes_referencia" class="form-label">
-                                <strong>Mês de Referência</strong>
-                            </label>
-                            <input type="text" class="form-control" name="mes_referencia" id="mes_referencia" placeholder="Ex: Julho/2025" required>
-                        </div>
+<div class="mb-3">
+    <label class="form-label"><strong>Mês de Referência</strong></label>
+    <div class="row">
+        <div class="col">
+            <select class="form-select" name="mes_selecionado" required>
+                <option value="1" {% if mes_atual == 1 %}selected{% endif %}>Janeiro</option>
+                <option value="2" {% if mes_atual == 2 %}selected{% endif %}>Fevereiro</option>
+                <option value="3" {% if mes_atual == 3 %}selected{% endif %}>Março</option>
+                <option value="4" {% if mes_atual == 4 %}selected{% endif %}>Abril</option>
+                <option value="5" {% if mes_atual == 5 %}selected{% endif %}>Maio</option>
+                <option value="6" {% if mes_atual == 6 %}selected{% endif %}>Junho</option>
+                <option value="7" {% if mes_atual == 7 %}selected{% endif %}>Julho</option>
+                <option value="8" {% if mes_atual == 8 %}selected{% endif %}>Agosto</option>
+                <option value="9" {% if mes_atual == 9 %}selected{% endif %}>Setembro</option>
+                <option value="10" {% if mes_atual == 10 %}selected{% endif %}>Outubro</option>
+                <option value="11" {% if mes_atual == 11 %}selected{% endif %}>Novembro</option>
+                <option value="12" {% if mes_atual == 12 %}selected{% endif %}>Dezembro</option>
+            </select>
+        </div>
+        <div class="col">
+            <select class="form-select" name="ano_selecionado" required>
+                {% for ano in lista_anos %}
+                    <option value="{{ ano }}" {% if ano == ano_atual %}selected{% endif %}>{{ ano }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
 
                         <button type="submit" class="btn btn-primary w-100 mt-3">
                             <i class="bi bi-play-circle"></i> Iniciar Conciliação
