@@ -52,11 +52,11 @@
                         <i class="bi bi-clock-history"></i> Histórico
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'comparar' %}active{% endif %}" href="{% url 'comparar' %}">
-                        <i class="bi bi-bar-chart-line"></i> Comparar Meses
-                    </a>
-                </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'soma_tarifas' %}active{% endif %}" href="{% url 'soma_tarifas' %}">
+                            <i class="bi bi-cash-coin"></i> Soma de Tarifas
+                        </a>
+                    </li>
                 <li class="nav-item">
                     <a class="nav-link {% if active_page == 'regras' %}active{% endif %}" href="{% url 'gerenciar_regras' %}">
                         <i class="bi bi-pencil-square"></i> Gerenciar Regras

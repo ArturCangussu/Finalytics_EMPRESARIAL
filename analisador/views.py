@@ -571,3 +571,60 @@ def apagar_conciliacao(request, relatorio_id):
             messages.error(request, "Relatório não encontrado ou você não tem permissão para apagá-lo.")
     
     return redirect('historico')
+
+
+
+@login_required
+def soma_tarifas(request):
+    contexto = {'active_page': 'soma_tarifas'}
+
+    if request.method == 'POST':
+        arquivo_extrato = request.FILES.get('arquivo_extrato')
+
+        if not arquivo_extrato:
+            messages.error(request, 'Por favor, envie um arquivo de extrato.')
+            return render(request, 'analisador/soma_tarifas.html', contexto)
+
+        try:
+            # Reutiliza a lógica existente de leitura de extrato
+            print("Processando extrato do banco para soma de tarifas...")
+            df_banco = None
+            if arquivo_extrato.name.lower().endswith('.html'):
+                df_banco_bruto = _processar_formato_sicoob_html(arquivo_extrato)
+                df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
+            else:  # Assume .xlsx
+                df_com_skip = pd.read_excel(arquivo_extrato, skiprows=1)
+                df_banco_bruto = None
+                if 'Data Lançamento' in df_com_skip.columns and 'Valor Lançamento' in df_com_skip.columns:
+                    df_banco_bruto = _processar_formato_caixa(df_com_skip)
+                elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
+                    df_banco_bruto = _processar_formato_sicoob(df_com_skip)
+                
+                if df_banco_bruto is not None:
+                    df_banco = df_banco_bruto[['Data', 'Descricao', 'Valor', 'Topico']]
+                else:
+                    raise ValueError("Formato de extrato bancário não reconhecido.")
+            
+            # Nova lógica de cálculo
+            total_receitas = df_banco[df_banco['Topico'] == 'Receita']['Valor'].sum()
+            
+            despesas_df = df_banco[df_banco['Topico'] == 'Despesa']
+            total_despesas = despesas_df['Valor'].sum()
+            
+            tarifas_pix_df = despesas_df[despesas_df['Descricao'].str.upper().str.contains('TAR PIX', na=False)]
+            total_tarifas_pix = tarifas_pix_df['Valor'].sum()
+
+            contexto['resultados_prontos'] = True
+            contexto['total_receitas'] = total_receitas
+            contexto['total_despesas'] = total_despesas
+            contexto['total_tarifas_pix'] = total_tarifas_pix
+            
+            messages.success(request, 'Análise concluída com sucesso!')
+            return render(request, 'analisador/soma_tarifas.html', contexto)
+
+        except Exception as e:
+            messages.error(request, f"Erro ao processar o extrato: {e}")
+            return render(request, 'analisador/soma_tarifas.html', contexto)
+
+    # Para o método GET (primeiro acesso à página)
+    return render(request, 'analisador/soma_tarifas.html', contexto)
