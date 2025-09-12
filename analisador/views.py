@@ -49,12 +49,24 @@ def pagina_inicial(request):
     # Lógica para o método GET (preenchimento dos dropdowns)
     if request.method == 'GET':
         hoje = datetime.date.today()
-        ano_atual = hoje.year
-        mes_atual = hoje.month
-        lista_anos = list(range(ano_atual - 1, ano_atual + 4)) 
+        ano_corrente = hoje.year
+        mes_corrente = hoje.month
+
+        # Lógica para calcular o mês e ano anteriores
+        if mes_corrente == 1:
+            mes_padrao = 12
+            ano_padrao = ano_corrente - 1
+        else:
+            mes_padrao = mes_corrente - 1
+            ano_padrao = ano_corrente
+        
+        # A lista de anos para seleção continua baseada no ano corrente
+        lista_anos = list(range(ano_corrente - 1, ano_corrente + 4)) 
         contexto = {
-            'active_page': 'home', 'ano_atual': ano_atual,
-            'mes_atual': mes_atual, 'lista_anos': lista_anos
+            'active_page': 'home', 
+            'ano_atual': ano_padrao,      # MUDANÇA: Usa o ano anterior como padrão
+            'mes_atual': mes_padrao,      # MUDANÇA: Usa o mês anterior como padrão
+            'lista_anos': lista_anos
         }
         return render(request, 'analisador/pagina_inicial.html', contexto)
 
