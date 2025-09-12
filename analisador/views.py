@@ -146,7 +146,7 @@ def pagina_inicial(request):
                 apenas_banco=apenas_banco.to_dict('records'),
                 apenas_relatorio=apenas_relatorio.to_dict('records')
             )
-            return redirect('ver_conciliacacao', relatorio_id=novo_relatorio.id)
+            return redirect('ver_conciliacao', relatorio_id=novo_relatorio.id)
 
         except Exception as e:
             import traceback
