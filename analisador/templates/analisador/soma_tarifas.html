@@ -17,8 +17,10 @@
     </div>
 
     {% if resultados_prontos %}
+    <!-- SEÇÃO DE RESULTADOS -->
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
+            <!-- Card com os totais -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
                     <h5 class="card-title mb-0"><i class="bi bi-check2-circle"></i> Análise Concluída</h5>
@@ -35,48 +37,63 @@
                         </div>
                         <div class="col-md-4">
                             <h4>Total de Tarifas PIX</h4>
-                            <p class="h3 font-monospace valor-despesa">R$ {{ total_tarifas_pix }}
+                            <p class="h3 font-monospace valor-despesa">R$ {{ total_tarifas_pix }}</p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Botão para mostrar/ocultar detalhes (só aparece se houver tarifas) -->
+            {% if lista_tarifas %}
+            <div class="text-center mb-3">
+                <button class="btn btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#detalhesTarifasCollapse" aria-expanded="false" aria-controls="detalhesTarifasCollapse">
+                    <i class="bi bi-search"></i> Ver Detalhes das Tarifas
+                </button>
+            </div>
+            {% endif %}
+
+            <!-- Conteúdo Oculto (Collapsible) -->
+            <div class="collapse" id="detalhesTarifasCollapse">
+                {% if lista_tarifas %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-list-ol"></i> Detalhamento das Tarifas PIX</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição no Extrato</th>
+                                    <th class="text-end">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tarifa in lista_tarifas %}
+                                <tr>
+                                    <td>{{ tarifa.Data }}</td>
+                                    <td>{{ tarifa.Descricao }}</td>
+                                    <td class="text-end font-monospace valor-despesa">
+                                        R$ {{ tarifa.Valor|floatformat:2 }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Botão Fazer Nova Análise -->
             <div class="text-center">
                 <a href="{% url 'soma_tarifas' %}" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i> Fazer Nova Análise</a>
             </div>
         </div>
     </div>
 
-                {% if lista_tarifas %}
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0"><i class="bi bi-list-ol"></i> Detalhamento das Tarifas PIX</h5>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Data</th>
-                                <th>Descrição no Extrato</th>
-                                <th class="text-end">Valor</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for tarifa in lista_tarifas %}
-                            <tr>
-                                <td>{{ tarifa.Data }}</td>
-                                <td>{{ tarifa.Descricao }}</td>
-                                <td class="text-end font-monospace valor-despesa">
-                                    R$ {{ tarifa.Valor|floatformat:2 }}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            {% endif %}
-            
     {% else %}
+    <!-- SEÇÃO DE UPLOAD -->
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
             <div class="card shadow-sm">
