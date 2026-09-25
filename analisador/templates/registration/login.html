@@ -31,7 +31,9 @@
                     <button type="submit" class="btn btn-primary w-100">Entrar</button>
                 </form>
                 <hr>
+                {% if permitir_cadastro %}
                 <p class="text-center">Não tem uma conta? <a href="{% url 'cadastro' %}">Cadastre-se</a>.</p>
+                {% endif %}
             </div>
         </div>
     </div>

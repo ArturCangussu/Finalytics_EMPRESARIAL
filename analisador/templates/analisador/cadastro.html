@@ -32,14 +32,12 @@
                                 class="form-control {% if field.errors %}is-invalid{% endif %}"
                                 required>
                             
-                            <!-- Mostra o texto de ajuda (ex: regras da senha) -->
                             {% if field.help_text %}
                                 <div class="form-text text-muted">
                                     {{ field.help_text|safe }}
                                 </div>
                             {% endif %}
                             
-                            <!-- Mostra erros específicos do campo -->
                             {% for error in field.errors %}
                                 <div class="invalid-feedback">
                                     {{ error }}

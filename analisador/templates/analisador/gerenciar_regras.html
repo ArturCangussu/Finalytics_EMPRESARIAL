@@ -15,7 +15,6 @@
 {% endif %}
     </div>
 
-    <!-- Card para adicionar nova regra -->
     <div class="card shadow-sm mb-4">
         <div class="card-header">
             <h5 class="card-title mb-0">Adicionar Nova Regra</h5>
@@ -38,7 +37,6 @@
         </div>
     </div>
 
-    <!-- Card com a lista de regras existentes -->
     <div class="card shadow-sm">
         <div class="card-header">
             <h5 class="card-title mb-0">Regras Salvas</h5>
@@ -59,10 +57,8 @@
                             <td>{{ regra.palavra_chave }}</td>
                             <td>{{ regra.categoria }}</td>
                             <td>
-                                <!-- Botão de Editar -->
                                 <a href="{% url 'editar_regra' regra_id=regra.id %}" class="btn btn-sm btn-outline-warning me-2">Editar</a>
                                 
-                                <!-- Formulário/Botão de Apagar -->
                                 <form action="{% url 'apagar_regra' regra_id=regra.id %}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja apagar esta regra?');">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-outline-danger">Apagar</button>

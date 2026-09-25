@@ -1,8 +1,8 @@
-django
-pandas
-numpy
-beautifulsoup4
-openpyxl
-gunicorn
-whitenoise
-python-dotenv
+Django>=5.2,<5.3
+pandas>=2.2,<3
+numpy>=1.26,<3
+beautifulsoup4>=4.12,<5
+openpyxl>=3.1,<4
+gunicorn>=22
+whitenoise>=6.6,<7
+python-dotenv>=1.0,<2

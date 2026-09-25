@@ -1,7 +1,7 @@
 
 :root {
-    --bs-dark-rgb: 4, 28, 50; /* Azul Marinho para o fundo */
-    --bs-body-color: #f8f9fa; /* Branco/Cinza claro para o texto */
+    --bs-dark-rgb: 4, 28, 50;
+    --bs-body-color: #f8f9fa;
     --bs-secondary-color: #adb5bd;
     --bs-primary: #0d6efd;
     --verde-sucesso: #198754;
@@ -18,24 +18,22 @@ body {
     font-family: 'Roboto Mono', monospace;
 }
 
-/* --- CORREÇÃO PRINCIPAL DO LAYOUT --- */
 .sidebar {
     width: 280px;
     min-height: 100vh;
     background-color: #0c1c2c; 
     padding: 1rem;
-    flex-shrink: 0; /* Impede a sidebar de encolher */
+    flex-shrink: 0;
 }
 
 .main-content {
-    flex-grow: 1; /* Permite que o conteúdo principal cresça */
-    padding: 2rem; /* Adiciona espaçamento interno */
-    width: calc(100% - 280px); /* FORÇA a largura a ocupar o resto */
+    flex-grow: 1;
+    padding: 2rem;
+    width: calc(100% - 280px);
 }
 
 
 
-/* Estilo da Sidebar  */
 .sidebar-header {
     margin-bottom: 1rem;
     padding-bottom: 1rem;
@@ -55,7 +53,6 @@ body {
 }
 
 
-/* Melhora a aparência dos cards no tema escuro */
 .card {
     background-color: #1a2a38;
     border: 1px solid #34495e;
@@ -73,27 +70,26 @@ body {
 
 
 
-/* --- ESTILOS PARA RESPONSIVIDADE (TELAS PEQUENAS) --- */
 
 @media (max-width: 992px) {
     .sidebar {
-        position: fixed; /* Fica fixa na tela */
+        position: fixed;
         top: 0;
-        left: -280px; /* Começa escondida para fora da tela */
-        z-index: 1030; /* Garante que fique por cima do conteúdo */
-        transition: left 0.3s ease; /* Animação suave ao abrir/fechar */
+        left: -280px;
+        z-index: 1030;
+        transition: left 0.3s ease;
     }
 
     .sidebar.active {
-        left: 0; /* Quando ativa, a sidebar desliza para dentro da tela */
+        left: 0;
     }
 
     .main-content {
-        width: 100%; /* Em telas pequenas, o conteúdo principal ocupa toda a largura */
+        width: 100%;
     }
 
     .sidebar-toggle {
-        display: block; /* Mostra o botão hamburger */
+        display: block;
     }
 }
 
@@ -109,14 +105,13 @@ body {
 
 
 
-/* Estilos para valores financeiros */
 .valor-receita {
-    color: var(--verde-sucesso) !important; /* Adicionado !important como garantia */
+    color: var(--verde-sucesso) !important;
     font-weight: bold;
 }
 
 .valor-despesa {
-    color: var(--vermelho-perigo) !important; /* Adicionado !important como garantia */
+    color: var(--vermelho-perigo) !important;
     font-weight: bold;
 }
 
@@ -140,10 +135,10 @@ body {
 
 @keyframes flash-effect {
     0% {
-        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); /* Verde sucesso, semi-transparente */
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
     }
     70% {
-        box-shadow: 0 0 10px 20px rgba(25, 135, 84, 0); /* Aumenta e desaparece */
+        box-shadow: 0 0 10px 20px rgba(25, 135, 84, 0);
     }
     100% {
         box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);

@@ -1,5 +1,3 @@
-# motor_analise.py (VERSÃO COM LIMPEZA INTELIGENTE DA DESCRIÇÃO)
-
 import pandas as pd
 import numpy as np
 from .models import Regra, Transacao, Extrato
@@ -11,7 +9,6 @@ import csv
 
 
 def sanitize_excel_file(uploaded_file):
-    print("--- INICIANDO SANITIZAÇÃO DO ARQUIVO EXCEL ---")
     uploaded_file.seek(0)
     sanitized_file_in_memory = io.BytesIO()
     with zipfile.ZipFile(sanitized_file_in_memory, 'w', zipfile.ZIP_DEFLATED) as z_out:
@@ -21,15 +18,11 @@ def sanitize_excel_file(uploaded_file):
                 if item.filename.startswith('xl/worksheets/sheet'):
                     xml_content_str = content.decode('utf-8')
                     sanitized_xml_content = re.sub(r' r="\d+"', '', xml_content_str)
-                    if xml_content_str != sanitized_xml_content:
-                        print("DEBUG: Sanitização aplicada.")
                     z_out.writestr(item, sanitized_xml_content.encode('utf-8'))
                 else:
                     z_out.writestr(item, content)
     sanitized_file_in_memory.seek(0)
-    print("--- SANITIZAÇÃO CONCLUÍDA ---")
     return sanitized_file_in_memory
-
 
 
 def converter_data_robusta(data):
@@ -38,20 +31,18 @@ def converter_data_robusta(data):
     except (ValueError, TypeError): return pd.to_datetime(data, dayfirst=True, errors='coerce')
 
 def _processar_formato_sicoob_html(arquivo_html):
-    print("--- INICIANDO PROCESSAMENTO SICOOB HTML (COM LIMPEZA DE DESCRIÇÃO) ---")
     try:
         conteudo = arquivo_html.read().decode('utf-8', errors='ignore')
         soup = BeautifulSoup(conteudo, 'html.parser')
-        
+
         tabela_lancamentos = None
         all_tables = soup.find_all('table')
         for table in all_tables:
             header = table.find('th', string=lambda t: t and 'DOCUMENTO' in t.upper())
             if header:
                 tabela_lancamentos = table
-                print("DEBUG: Tabela de lançamentos encontrada.")
                 break
-        
+
         if not tabela_lancamentos:
             raise ValueError("Nenhuma tabela de lançamentos com o cabeçalho 'DOCUMENTO' foi encontrada.")
 
@@ -59,50 +50,41 @@ def _processar_formato_sicoob_html(arquivo_html):
         tbody = tabela_lancamentos.find('tbody')
         if not tbody:
             raise ValueError("Corpo da tabela (tbody) não encontrado.")
-            
+
         for i, linha_tr in enumerate(tbody.find_all('tr')):
-            
+
             celulas_obj = linha_tr.find_all('td')
-            
-            
+
+
             if len(celulas_obj) == 4 and celulas_obj[0].get_text().strip() and "SALDO" not in celulas_obj[2].get_text().upper():
-                
+
                 data = celulas_obj[0].get_text().strip()
                 documento = celulas_obj[1].get_text().strip()
-                
 
-                # === LÓGICA PARA EXTRAIR APENAS A ÚLTIMA LINHA DA DESCRIÇÃO ===
- 
                 descricao_cell = celulas_obj[2]
-                # Pega todo o texto, usando '\n' como separador para manter as linhas
+
                 texto_completo_com_linhas = descricao_cell.get_text(separator='\n').strip()
-                # Divide o texto em uma lista de linhas e remove as que estiverem vazias
+
                 linhas = [linha.strip() for linha in texto_completo_com_linhas.split('\n') if linha.strip()]
-                
-                descricao_final = ' '.join(linhas) # Um fallback caso a lógica falhe
+
+                descricao_final = ' '.join(linhas)
                 if linhas:
-                
+
                     descricao_final = linhas[-1]
 
                 valor_str = celulas_obj[3].get_text().strip()
 
-                # Lógica para extrair C/D do valor 
                 lancamento = ''
                 valor_limpo = '0'
                 if valor_str and valor_str[-1] in ['C', 'D']:
                     lancamento = valor_str[-1]
                     valor_limpo = valor_str[:-1].strip()
-                
-                print(f"DEBUG: Linha #{i+1} -> VÁLIDA. Descrição limpa: '{descricao_final}'")
-                dados.append([data, documento, descricao_final, valor_limpo, lancamento])
-            else:
-                print(f"DEBUG: Linha #{i+1} -> IGNORADA (não é transação).")
 
+                dados.append([data, documento, descricao_final, valor_limpo, lancamento])
 
         if not dados:
             raise ValueError("Nenhuma linha de transação válida foi encontrada na tabela após a análise.")
 
-        print(f"--- PROCESSAMENTO CONCLUÍDO. Total de transações válidas: {len(dados)} ---")
         colunas = ['Data', 'Documento', 'Descricao', 'Valor', 'Lancamento']
         df = pd.DataFrame(dados, columns=colunas)
 
@@ -110,59 +92,48 @@ def _processar_formato_sicoob_html(arquivo_html):
         import traceback
         traceback.print_exc()
         raise ValueError(f"Não foi possível processar o arquivo HTML com BeautifulSoup. Erro: {e}")
-    
-    # O restante do processamento para padronizar o DataFrame continua igual
+
     df_padronizado = df
     df_padronizado['Topico'] = np.where(df_padronizado['Lancamento'] == 'C', 'Receita', 'Despesa')
-    
+
     df_padronizado['Valor'] = pd.to_numeric(
         df_padronizado['Valor'].str.replace('.', '', regex=False).str.replace(',', '.', regex=False),
         errors='coerce'
     ).fillna(0).abs()
-    
+
     df_padronizado['origem_descricao'] = 'Historico'
     df_padronizado['Data'] = df_padronizado['Data'].apply(converter_data_robusta)
-    
-    return df_padronizado
 
+    return df_padronizado
 
 
 def _processar_formato_caixa(df):
-    print("Formato Caixa Federal detectado.")
-    
-    
-    # 1. Filtra o DataFrame para manter apenas linhas que são transações reais.
+
+
+
     if 'Data Lançamento' not in df.columns or 'Valor Lançamento' not in df.columns:
         raise ValueError("Colunas 'Data Lançamento' ou 'Valor Lançamento' não encontradas no extrato da Caixa.")
 
-    # Converte a coluna de data, tratando erros. Linhas sem data válida (como cabeçalhos) se tornarão NaT (Not a Time).
     df['Data Lançamento'] = pd.to_datetime(df['Data Lançamento'], dayfirst=True, errors='coerce')
 
-    # Remove todas as linhas onde a data não pôde ser convertida (linhas de cabeçalho, saldo, etc.)
     df.dropna(subset=['Data Lançamento'], inplace=True)
-    
-    # Remove linhas onde o valor do lançamento é zero ou nulo, que não são transações relevantes.
+
     df['Valor Lançamento'] = pd.to_numeric(df['Valor Lançamento'], errors='coerce')
     df.dropna(subset=['Valor Lançamento'], inplace=True)
     df = df[df['Valor Lançamento'] != 0]
-    
 
-    
     df['origem_descricao'] = np.where(df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True).isna(), 'Historico', 'Nome/Razao Social')
     df['Nome/Razão Social'] = df['Nome/Razão Social'].replace(r'^\s*$', np.nan, regex=True)
     df['Nome/Razão Social'] = df['Nome/Razão Social'].fillna(df['Histórico'])
-    
-    # Renomeia as colunas DEPOIS de usá-las para o filtro
+
     df_padronizado = df.rename(columns={'Valor Lançamento': 'Valor', 'Nome/Razão Social': 'Descricao', 'Data Lançamento': 'Data'})
-    
-    # A lógica de tipo e valor absoluto agora opera em um DataFrame limpo
+
     df_padronizado['Topico'] = np.where(df_padronizado['Valor'] < 0, 'Despesa', 'Receita')
     df_padronizado['Valor'] = df_padronizado['Valor'].abs()
-    
+
     return df_padronizado
 
 def _processar_formato_sicoob(df):
-    print("Formato Sicoob XLSX detectado.")
     df['origem_descricao'] = 'Historico'
     df_padronizado = df.rename(columns={'HISTÓRICO': 'Descricao', 'VALOR': 'Valor', 'DATA': 'Data'})
     df_padronizado['Data'] = df_padronizado['Data'].apply(converter_data_robusta)
@@ -188,15 +159,12 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
         elif 'DATA' in df_com_skip.columns and 'HISTÓRICO' in df_com_skip.columns:
             df_processado = _processar_formato_sicoob(df_com_skip)
         else:
-            print("Colunas encontradas (tentativa 1):", df_normal.columns)
-            print("Colunas encontradas (tentativa 2):", df_com_skip.columns)
             raise ValueError("Formato de extrato não reconhecido.")
 
     df_processado.dropna(subset=['Data', 'Descricao'], how='all', inplace=True)
     regras_do_usuario = Regra.objects.filter(usuario=usuario_logado)
     regras_de_categorizacao = {regra.palavra_chave: regra.categoria for regra in regras_do_usuario}
 
-    
     def categorizar_transacao(descricao):
         if not isinstance(descricao, str): return 'Não categorizado'
         for palavra_chave, categoria in regras_de_categorizacao.items():
@@ -225,52 +193,39 @@ def processar_extrato(arquivo_extrato, usuario_logado, extrato_obj):
     return total_receitas, total_despesas, saldo_liquido, resumo_despesas, nao_categorizadas_limpo, resumo_receitas
 
 
-
-
-# --- FUNÇÃO PARA LER O RELATÓRIO "SEU CONDOMÍNIO" (TRATANDO COMO EXCEL) ---
 def _processar_relatorio_seu_condominio_csv(arquivo_csv):
-    """
-    Lê o relatório CSV do "Seu Condomínio", implementando corretamente a lógica de
-    "máquina de estados" para classificar Receitas e Despesas.
-    """
-    print("--- INICIANDO PROCESSAMENTO CSV (LÓGICA DE ESTADO CORRIGIDA) ---")
     try:
         arquivo_csv.seek(0)
         arquivo_csv_texto = io.TextIOWrapper(arquivo_csv, encoding='utf-8')
         reader = csv.reader(arquivo_csv_texto, delimiter=',', quotechar='"')
 
         dados_limpos = []
-        current_tipo = '' # Inicia sem tipo definido
+        current_tipo = ''
 
         for i, row in enumerate(reader):
-            # Ignora linhas vazias ou o cabeçalho original
+
             if not row or not row[0] or 'pagador_fornecedor' in row[0]:
                 continue
 
             primeira_coluna = row[0].upper()
 
-            # 1. MUDANÇA DE ESTADO: Procura por RECEITAS ou DESPESAS
             if 'RECEITAS' in primeira_coluna:
                 current_tipo = 'Receita'
-                continue 
-            
+                continue
+
             elif 'DESPESAS' in primeira_coluna:
                 current_tipo = 'Despesa'
                 continue
 
-            # 2. PROCESSAMENTO DE TRANSAÇÃO
-            # Uma transação válida tem 5 campos e uma data na 4ª posição (índice 3)
             if len(row) >= 5 and '/' in row[3]:
                 descricao_item, _, fornecedor, data, valor_str = row[:5]
-                
-                # Ignora a linha de cabeçalho que pode ser confundida com uma transação
+
                 if "CONTABILIZADO" in data.upper():
                     continue
 
                 valor_limpo = pd.to_numeric(valor_str, errors='coerce')
 
-                # Adiciona a transação à lista com o TIPO do estado atual
-                if current_tipo: # Só adiciona se já estivermos dentro de uma seção
+                if current_tipo:
                     dados_limpos.append({
                         'Tipo': current_tipo,
                         'Data': data,
@@ -286,18 +241,14 @@ def _processar_relatorio_seu_condominio_csv(arquivo_csv):
         df_final['Data'] = pd.to_datetime(df_final['Data'], dayfirst=True, errors='coerce')
         df_final.dropna(subset=['Data'], inplace=True)
         df_final.fillna({'Valor': 0, 'Fornecedor': '', 'Descricao': ''}, inplace=True)
-        
-        print(f"--- PROCESSAMENTO CSV CONCLUÍDO. {len(df_final)} transações encontradas. ---")
+
         return df_final
-        
+
     except Exception as e:
         raise ValueError(f"Não foi possível processar o arquivo CSV do Seu Condomínio. Erro: {e}")
-    
 
 
 def conciliar_dataframes(df_banco, df_relatorio):
-    """Compara os dois DataFrames e retorna as diferenças."""
-    print("--- INICIANDO MOTOR DE CONCILIAÇÃO ---")
     banco_comp = df_banco.copy()
     banco_comp.rename(columns={'Topico': 'Tipo'}, inplace=True)
     if 'Descricao' in banco_comp.columns:
@@ -316,5 +267,4 @@ def conciliar_dataframes(df_banco, df_relatorio):
     conciliadas = conciliacao_df[conciliacao_df['_merge'] == 'both']
     apenas_banco = conciliacao_df[conciliacao_df['_merge'] == 'left_only']
     apenas_relatorio = conciliacao_df[conciliacao_df['_merge'] == 'right_only']
-    print("--- CONCILIAÇÃO FINALIZADA ---")
     return conciliadas, apenas_banco, apenas_relatorio
